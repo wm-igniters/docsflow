@@ -91,8 +91,8 @@ export async function syncTechStack(connection, octokit) {
           _id: fileName,
           version: fileName.replace('.json', ''),
           last_commit_id: latestCommitSha,
-          last_update_timestamp: new Date(commitInfo.commit.committer.date),
-          last_github_user: commitInfo.author?.login || commitInfo.commit.author.name,
+          last_update_timestamp: commitInfo.commit.committer?.date ? new Date(commitInfo.commit.committer.date) : new Date(),
+          last_github_user: commitInfo.author?.login || commitInfo.commit.author?.name || 'unknown',
           last_updated_by: 'github',
           status: 'published',
           data: content,
@@ -105,8 +105,10 @@ export async function syncTechStack(connection, octokit) {
       if (doc && !doc.creation_timestamp) {
           const { data: firstCommits } = await octokit.rest.repos.listCommits({ owner: OWNER, repo: REPO, path: file.path, sha: BRANCH });
           const firstCommit = firstCommits[firstCommits.length - 1];
-          doc.creation_timestamp = new Date(firstCommit.commit.committer.date);
-          await doc.save();
+          if (firstCommit?.commit?.committer?.date) {
+            doc.creation_timestamp = new Date(firstCommit.commit.committer.date);
+            await doc.save();
+          }
       }
     }
   }

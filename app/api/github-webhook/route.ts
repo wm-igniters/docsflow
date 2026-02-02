@@ -57,7 +57,7 @@ async function syncFile(TechStackModel: any, filePath: string, fileName: string)
         per_page: 100 // Try to get the very first one
       });
       const firstCommit = firstCommits[firstCommits.length - 1];
-      if (firstCommit) {
+      if (firstCommit?.commit?.committer?.date) {
         doc.creation_timestamp = new Date(firstCommit.commit.committer.date);
         await doc.save();
       }
