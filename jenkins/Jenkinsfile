@@ -102,10 +102,9 @@ pipeline {
                 "AUTH_GOOGLE_SECRET=${shellQuote(AUTH_GOOGLE_SECRET)}",
                 "MONGODB_URI=${shellQuote(MONGODB_URI)}",
                 "GITHUB_TOKEN=${shellQuote(GITHUB_TOKEN)}",
-                "AUTH_TRUST_HOST='true'",
-               // "AUTH_URL='https://docsflow.wavemaker.com'"
+                "AUTH_TRUST_HOST='true'"
               ].join(' ')
-              def remoteRunCommand = "${environmentAssignments} docker run -d --name ${CONTAINER_NAME} -p ${HTTP_PORT}:3000 -e AUTH_SECRET -e AUTH_GOOGLE_ID -e AUTH_GOOGLE_SECRET -e MONGODB_URI -e GITHUB_TOKEN -e AUTH_TRUST_HOST -e AUTH_URL ${awsAccountID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}"
+              def remoteRunCommand = "${environmentAssignments} docker run -d --name ${CONTAINER_NAME} -p ${HTTP_PORT}:3000 -e AUTH_SECRET -e AUTH_GOOGLE_ID -e AUTH_GOOGLE_SECRET -e MONGODB_URI -e GITHUB_TOKEN -e AUTH_TRUST_HOST ${awsAccountID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}"
               sh "ssh -o StrictHostKeyChecking=no ubuntu@${REMOTE_SERVER} ${shellQuote(remoteRunCommand)}"
             }
           }
