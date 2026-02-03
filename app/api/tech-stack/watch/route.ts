@@ -6,15 +6,26 @@ import { TechStackSchema } from '@/models/TechStack';
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
+  let heartbeat: NodeJS.Timeout;
+
   const stream = new ReadableStream({
     async start(controller) {
       const conn = await connectDB(DB_CONFIG.DOCS_DB);
-      // We need a model to watch. Using a schema and the collection name.
       const TechStackModel = conn.models.TechStack || conn.model('TechStack', TechStackSchema, DB_CONFIG.TECH_STACK_COLLECTION);
 
       const changeStream = TechStackModel.watch([], { fullDocument: 'updateLookup' });
 
+      // Send initial connection message
       controller.enqueue(`data: ${JSON.stringify({ type: 'connected' })}\n\n`);
+
+      // Keep-alive heartbeat every 30 seconds
+      heartbeat = setInterval(() => {
+        try {
+          controller.enqueue(': heartbeat\n\n');
+        } catch (e) {
+          clearInterval(heartbeat);
+        }
+      }, 30000);
 
       changeStream.on('change', (change) => {
         let payload: any = { type: change.operationType };
@@ -27,7 +38,7 @@ export async function GET(req: NextRequest) {
             _id: doc._id,
             updatedAt: doc.updatedAt,
             updatedFields: change.updateDescription?.updatedFields || {},
-            fullDocument: doc // Include full doc for comparison
+            fullDocument: doc
           };
         }
 
@@ -35,12 +46,21 @@ export async function GET(req: NextRequest) {
           payload.documentKey = change.documentKey;
         }
 
-        controller.enqueue(`data: ${JSON.stringify(payload)}\n\n`);
+        try {
+          controller.enqueue(`data: ${JSON.stringify(payload)}\n\n`);
+        } catch (e) {
+          console.error("Failed to enqueue change to SSE stream", e);
+        }
       });
 
       req.signal.onabort = () => {
+        console.log("SSE Connection closed by client");
+        clearInterval(heartbeat);
         changeStream.close();
       };
+    },
+    cancel() {
+      if (heartbeat) clearInterval(heartbeat);
     }
   });
 
@@ -49,6 +69,8 @@ export async function GET(req: NextRequest) {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache, no-transform',
       'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no', // Disable Nginx buffering
     },
   });
 }
+
