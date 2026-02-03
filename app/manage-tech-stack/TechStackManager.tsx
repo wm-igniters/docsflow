@@ -224,9 +224,16 @@ function ArrayEditor({
     const currentItem = newItems[idx];
     
     if (typeof currentItem === 'string') {
-      if (field === 'name') newItems[idx] = value;
-      else {
-        newItems[idx] = { name: currentItem, [field]: value };
+      if (field === 'name') {
+        newItems[idx] = value;
+      } else {
+        // Convert all items to objects for consistency if we're adding details
+        const itemsAsObjects = items.map(it => 
+          typeof it === 'string' ? { name: it } : { ...it }
+        );
+        itemsAsObjects[idx] = { ...itemsAsObjects[idx], [field]: value };
+        onUpdate(itemsAsObjects);
+        return;
       }
     } else {
       if (field === 'url') {
@@ -817,7 +824,7 @@ export default function TechStackManager() {
                result[key] = JSON.parse(JSON.stringify(incValue));
             } else {
                // Partially touched locally. Merge items that were NOT touched locally.
-               result[key] = incValue.map((incItem: any, idx: number) => {
+                const merged = incValue.map((incItem: any, idx: number) => {
                   const localItem = target[key]?.[idx];
                   const bItem = baseValue?.[idx];
                   // If local item matches base, it hasn't been touched, so take incoming.
@@ -826,6 +833,13 @@ export default function TechStackManager() {
                   }
                   return localItem || incItem;
                });
+
+               // Issue 5: Preserve local items beyond incoming length
+               const localArray = target[key] || [];
+               if (localArray.length > incValue.length) {
+                  merged.push(...JSON.parse(JSON.stringify(localArray.slice(incValue.length))));
+               }
+               result[key] = merged;
             }
           } else if (typeof incValue === 'object' && incValue !== null) {
             result[key] = mergeSilently(target[key] || {}, incValue, baseValue || {}, [...path, key]);

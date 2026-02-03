@@ -27,15 +27,19 @@ export async function syncTechStack() {
       await TechStackModel.findOneAndUpdate(
         { _id: file.fileName },
         {
-          _id: file.fileName,
-          version: file.version,
-          last_commit_id: file.metadata?.last_commit_id,
-          last_update_timestamp: file.metadata?.last_update_timestamp,
-          last_github_user: file.metadata?.last_github_user,
-          last_updated_by: 'github',
-          status: 'published',
-          data: file.content,
-          docs_flow_data: file.content, // Resetting DocsFlow data to match GitHub on explicit sync
+          $set: {
+            version: file.version,
+            last_commit_id: file.metadata?.last_commit_id,
+            last_update_timestamp: file.metadata?.last_update_timestamp,
+            last_github_user: file.metadata?.last_github_user,
+            last_updated_by: 'github',
+            status: 'published',
+            data: file.content,
+          },
+          $setOnInsert: {
+            _id: file.fileName,
+            docs_flow_data: file.content,
+          }
         },
         { upsert: true, new: true, setDefaultsOnInsert: true }
       );
@@ -56,18 +60,31 @@ export async function syncTechStack() {
 }
 
 export async function updateDocsFlowData(version: string, newData: any) {
+  // Issue 8: Validate input
+  if (newData === null || newData === undefined) {
+    return { success: false, error: "Data cannot be null or undefined" };
+  }
+  if (typeof newData !== 'object' || Array.isArray(newData)) {
+    return { success: false, error: "Data must be an object" };
+  }
+
   try {
     const conn = await connectDB(DB_CONFIG.DOCS_DB);
     const TechStackModel = conn.models.TechStack || conn.model<ITechStack>('TechStack', TechStackSchema, DB_CONFIG.TECH_STACK_COLLECTION);
     
-    await TechStackModel.findOneAndUpdate(
+    const result = await TechStackModel.findOneAndUpdate(
       { version },
       { 
         docs_flow_data: newData,
         status: 'modified',
         last_updated_by: 'docsflow'
-      }
+      },
+      { new: true }
     );
+
+    if (!result) {
+      return { success: false, error: `Version "${version}" not found` };
+    }
     
     // Revalidate the page to clear Next.js cache and show updated data
     revalidatePath('/manage-tech-stack');

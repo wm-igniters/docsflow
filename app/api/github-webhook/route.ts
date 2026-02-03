@@ -103,10 +103,10 @@ export async function POST(req: NextRequest) {
       const allRemoved = new Set<string>();
       const allModified = new Set<string>();
 
-      payload.commits.forEach((commit: any) => {
-        commit.removed.forEach((f: string) => f.startsWith(DATA_PATH) && f.endsWith(".json") && allRemoved.add(f));
-        commit.added.forEach((f: string) => f.startsWith(DATA_PATH) && f.endsWith(".json") && allModified.add(f));
-        commit.modified.forEach((f: string) => f.startsWith(DATA_PATH) && f.endsWith(".json") && allModified.add(f));
+      (payload.commits || []).forEach((commit: any) => {
+        (commit.removed || []).forEach((f: string) => f.startsWith(DATA_PATH) && f.endsWith(".json") && allRemoved.add(f));
+        (commit.added || []).forEach((f: string) => f.startsWith(DATA_PATH) && f.endsWith(".json") && allModified.add(f));
+        (commit.modified || []).forEach((f: string) => f.startsWith(DATA_PATH) && f.endsWith(".json") && allModified.add(f));
       });
 
       // Handle removals
@@ -124,14 +124,14 @@ export async function POST(req: NextRequest) {
           const existingDoc = await TechStackModel.findById(fileName);
           const metadata = await getFileMetadata(filePath, BRANCH);
 
-          if (!metadata) {
-             console.log(`Could not fetch metadata for ${fileName}, skipping.`);
-             continue;
+          let isNewer = true;
+          if (metadata) {
+            isNewer = !existingDoc || 
+                      existingDoc.last_commit_id !== metadata.last_commit_id ||
+                      new Date(metadata.last_update_timestamp!) > new Date(existingDoc.last_update_timestamp);
+          } else {
+            console.log(`Could not fetch metadata for ${fileName}, forcing sync.`);
           }
-
-          const isNewer = !existingDoc || 
-                          existingDoc.last_commit_id !== metadata.last_commit_id ||
-                          new Date(metadata.last_update_timestamp!) > new Date(existingDoc.last_update_timestamp);
 
           if (isNewer) {
              const ok = await syncFile(TechStackModel, filePath, fileName);
