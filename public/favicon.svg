@@ -1,24 +1,22 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <!-- Blue rounded background -->
-  <rect width="32" height="32" rx="6" fill="#2563eb" />
+  <rect width="32" height="32" rx="8" fill="#2563eb" />
 
-  <!-- White filled document -->
-  <g transform="translate(6 5)">
-    <!-- Document body -->
-    <path
-      d="M4 22a2 2 0 0 1-2-2V2a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 18 6v14a2 2 0 0 1-2 2z"
-      fill="#ffffff"
+  <g transform="translate(6 8)">
+    <path 
+      d="M0 2c0-2 3-2 5 0s4 2 8 0 5-2 7 0v3c-2-2-5-2-7 0s-5 2-8 0-5-2-5 0V2z" 
+      fill="#ffffff" 
+      opacity="0.6"
     />
-
-    <!-- Folded corner -->
-    <path
-      d="M12 0v5a1 1 0 0 0 1 1h5"
-      fill="#2563eb"
+    
+    <path 
+      d="M0 8c0-2 3-2 5 0s4 2 8 0 5-2 7 0v3c-2-2-5-2-7 0s-5 2-8 0-5-2-5 0V8z" 
+      fill="#ffffff" 
     />
-
-    <!-- Text lines (cut out effect) -->
-    <path d="M8 9H6" stroke="#2563eb" stroke-width="2" stroke-linecap="round"/>
-    <path d="M14 13H6" stroke="#2563eb" stroke-width="2" stroke-linecap="round"/>
-    <path d="M14 17H6" stroke="#2563eb" stroke-width="2" stroke-linecap="round"/>
+    
+    <path 
+      d="M0 14c0-2 3-2 5 0s4 2 8 0 5-2 7 0v3c-2-2-5-2-7 0s-5 2-8 0-5-2-5 0V14z" 
+      fill="#ffffff" 
+      opacity="0.6"
+    />
   </g>
 </svg>

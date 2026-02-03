@@ -2,7 +2,6 @@ import { auth } from "@/auth";
 import Image from "next/image";
 import Link from "next/link";
 import { 
-  FileText, 
   User,
   Settings
 } from "lucide-react";
@@ -29,9 +28,14 @@ export default async function ManageTechStack() {
           <div className="mx-auto flex h-full max-w-[1440px] items-center justify-between px-4 sm:px-6 lg:px-8">
             <div className="flex items-center gap-2">
               <Link href="/app" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-white shadow-sm">
-                    <FileText size={18} className="fill-current" />
-                  </div>
+                  <Image
+                    src="/favicon.svg"
+                    alt="DocsFlow Logo"
+                    width={32}
+                    height={32}
+                    className="rounded-lg shadow-sm"
+                    priority
+                  />
                   <span className="text-xl font-bold tracking-tight text-slate-900">DocsFlow</span>
               </Link>
               <span className="text-slate-300 mx-2">/</span>
