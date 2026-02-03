@@ -48,7 +48,7 @@ export default async function Home() {
             <div className="mx-auto max-w-2xl py-32 sm:py-48 lg:py-56 text-center">
               <div className="hidden sm:mb-8 sm:flex sm:justify-center">
                 <div className="relative rounded-full px-3 py-1 text-sm leading-6 text-slate-600 ring-1 ring-slate-900/10 hover:ring-slate-900/20">
-                  Announcing new collaboration features. <a href="#" className="font-semibold text-blue-600"><span className="absolute inset-0" aria-hidden="true"></span>Read more <span aria-hidden="true">&rarr;</span></a>
+                  Coming soon: collaboration features. <a href="#" className="font-semibold text-blue-600"><span className="absolute inset-0" aria-hidden="true"></span>Read more <span aria-hidden="true">&rarr;</span></a>
                 </div>
               </div>
               <h1 className="text-4xl font-bold tracking-tight text-slate-900 sm:text-6xl">
@@ -68,9 +68,9 @@ export default async function Home() {
                     Get started
                   </button>
                 </form>
-                <a href="#" className="text-sm font-semibold leading-6 text-slate-900">
+                {/* <a href="#" className="text-sm font-semibold leading-6 text-slate-900">
                   Learn more <span aria-hidden="true">→</span>
-                </a>
+                </a> */}
               </div>
             </div>
           </div>
