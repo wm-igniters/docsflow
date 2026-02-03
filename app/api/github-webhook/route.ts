@@ -34,14 +34,19 @@ async function syncFile(TechStackModel: any, filePath: string, fileName: string)
     await TechStackModel.findOneAndUpdate(
       { _id: fileName },
       {
-        _id: fileName,
-        version: fileName.replace(".json", ""),
-        last_commit_id: metadata?.last_commit_id,
-        last_update_timestamp: metadata?.last_update_timestamp,
-        last_github_user: metadata?.last_github_user,
-        last_updated_by: "github",
-        status: "published",
-        data: content,
+        $set: {
+          version: fileName.replace(".json", ""),
+          last_commit_id: metadata?.last_commit_id,
+          last_update_timestamp: metadata?.last_update_timestamp,
+          last_github_user: metadata?.last_github_user,
+          last_updated_by: "github",
+          status: "published",
+          data: content,
+        },
+        $setOnInsert: {
+          _id: fileName,
+          docs_flow_data: content,
+        }
       },
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );

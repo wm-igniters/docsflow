@@ -22,6 +22,7 @@ export async function syncTechStack(connection, octokit) {
     last_updated_by: { type: String, enum: ['github', 'docsflow'], default: 'github' },
     status: { type: String, enum: ['modified', 'draft', 'published'], default: 'published' },
     data: mongoose.Schema.Types.Mixed,
+    docs_flow_data: mongoose.Schema.Types.Mixed,
   }, { timestamps: true });
 
   const TechStack = connection.model('TechStack', TechStackSchema, TECH_STACK_COLLECTION);
@@ -94,14 +95,19 @@ export async function syncTechStack(connection, octokit) {
       await TechStack.findOneAndUpdate(
         { _id: fileName },
         {
-          _id: fileName,
-          version: fileName.replace('.json', ''),
-          last_commit_id: latestCommitSha,
-          last_update_timestamp: commitInfo.commit.committer?.date ? new Date(commitInfo.commit.committer.date) : new Date(),
-          last_github_user: commitInfo.author?.login || commitInfo.commit.author?.name || 'unknown',
-          last_updated_by: 'github',
-          status: 'published',
-          data: content,
+          $set: {
+            version: fileName.replace('.json', ''),
+            last_commit_id: latestCommitSha,
+            last_update_timestamp: commitInfo.commit.committer?.date ? new Date(commitInfo.commit.committer.date) : new Date(),
+            last_github_user: commitInfo.author?.login || commitInfo.commit.author?.name || 'unknown',
+            last_updated_by: 'github',
+            status: 'published',
+            data: content,
+          },
+          $setOnInsert: {
+            _id: fileName,
+            docs_flow_data: content,
+          }
         },
         { upsert: true }
       );

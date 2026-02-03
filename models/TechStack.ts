@@ -6,6 +6,7 @@ export interface ITechStack extends Document<string> {
   last_update_timestamp: Date;
   creation_timestamp: Date;
   data: any;
+  docs_flow_data: any;
   last_github_user: string;
   last_updated_by: 'github' | 'docsflow';
   status: 'modified' | 'draft' | 'published';
@@ -47,6 +48,9 @@ export const TechStackSchema: Schema = new Schema(
       default: 'published',
     },
     data: {
+      type: Schema.Types.Mixed,
+    },
+    docs_flow_data: {
       type: Schema.Types.Mixed,
     },
   },
