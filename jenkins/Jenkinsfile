@@ -11,6 +11,13 @@ pipeline {
     IMAGE_TAG = "dev.wm-docs-flow.${env.BUILD_NUMBER}"
     HTTP_PORT = '8035'
     DEPLOYMENT_KEY = 'wm-docs-ssh-key'
+     AUTH_SECRET = credentials('auth_secret')
+      AUTH_GOOGLE_ID = credentials('auth_google_id')
+       AUTH_GOOGLE_SECRET = credentials('auth_google_secret')
+        MONGODB_URI = credentials('mongodb_uri')
+        GITHUB_TOKEN = credentials('docs_flow_github_token')
+        GITHUB_WEBHOOK_SECRET=credentials('docs_flow_github_secret')
+      
   } 
 
   stages {
@@ -62,14 +69,6 @@ pipeline {
     } 
 
     stage('Deploy Docker Container') {
-         environment {
-        AUTH_SECRET = credentials('auth_secret')
-        AUTH_GOOGLE_ID = credentials('auth_google_id')
-        AUTH_GOOGLE_SECRET = credentials('auth_google_secret')
-        MONGODB_URI = credentials('mongodb_uri')
-        GITHUB_TOKEN = credentials('docs_flow_github_token')
-        GITHUB_WEBHOOK_SECRET=('docs_flow_guthub_secret')
-      }
       steps {
         script {
           sshagent([DEPLOYMENT_KEY]) {
