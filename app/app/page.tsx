@@ -39,6 +39,7 @@ export default async function Dashboard() {
                     width={32}
                     height={32}
                     className="rounded-full border border-slate-200"
+                    unoptimized
                   />
                 ) : (
                   <div className="h-8 w-8 rounded-full bg-blue-100" />

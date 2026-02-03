@@ -54,6 +54,7 @@ export default async function ManageTechStack() {
                       width={36}
                       height={36}
                       className="rounded-full border-2 border-white shadow-sm"
+                      unoptimized
                     />
                   ) : (
                     <div className="h-9 w-9 rounded-full bg-blue-100 flex items-center justify-center border-2 border-white shadow-sm text-blue-600 font-bold">
