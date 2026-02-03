@@ -1,8 +1,10 @@
 pipeline {
   agent any
+
   tools {
     nodejs 'node-22.11.0'
-  }  // end of tool
+  }
+
   environment {
     REMOTE_SERVER = "172.31.27.164"
     CONTAINER_NAME = 'wm-docs-flow'
@@ -11,92 +13,96 @@ pipeline {
     IMAGE_TAG = "dev.wm-docs-flow.${env.BUILD_NUMBER}"
     HTTP_PORT = '8035'
     DEPLOYMENT_KEY = 'wm-docs-ssh-key'
-     AUTH_SECRET = credentials('auth_secret')
-      AUTH_GOOGLE_ID = credentials('auth_google_id')
-       AUTH_GOOGLE_SECRET = credentials('auth_google_secret')
-        MONGODB_URI = credentials('mongodb_uri')
-        GITHUB_TOKEN = credentials('docs_flow_github_token')
-        GITHUB_WEBHOOK_SECRET=credentials('docs_flow_github_secret')
-      
-  } 
+
+    AUTH_SECRET = credentials('auth_secret')
+    AUTH_GOOGLE_ID = credentials('auth_google_id')
+    AUTH_GOOGLE_SECRET = credentials('auth_google_secret')
+    MONGODB_URI = credentials('mongodb_uri')
+    GITHUB_TOKEN = credentials('docs_flow_github_token')
+    GITHUB_WEBHOOK_SECRET = credentials('docs_flow_github_secret')
+  }
 
   stages {
-     
 
-
-    stage('Maven code Build') {
-      steps {
-       sh """
-          npm install
-          npm run build
-        """
-      }
-    }
-
-  stage('Build Docker Image') {
-    steps {
-        script {
-            withAWS(region: AWS_REGION, credentials: 'wm-ps-user-ecr') {
-                def awsAccountID = sh(returnStdout: true, script: "aws sts get-caller-identity --query Account --output text").trim()
-                
-                // Login to AWS ECR
-                sh "aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${awsAccountID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
-                
-                // Build Docker image
-                sh "docker build --tag=${ECR_REPO}:${IMAGE_TAG} ."
-            }
-        }
-    }
-}
-
-
-    stage('Push to Docker Hub') {
+    stage('Build Docker Image') {
       steps {
         script {
           withAWS(region: AWS_REGION, credentials: 'wm-ps-user-ecr') {
-            def awsAccountID = sh(returnStdout: true, script: "aws sts get-caller-identity --query Account --output text").trim()
-            //def ecrLogin = sh(returnStdout: true, script: "aws ecr get-login --no-include-email --region ${AWS_REGION}")
-            //sh "${ecrLogin}"
-            // Login to AWS ECR
-                sh "aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${awsAccountID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
-            
-            // Tag and push Docker image to ECR
-            sh "docker tag ${ECR_REPO}:${IMAGE_TAG} ${awsAccountID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}"
-            sh "docker push ${awsAccountID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}"
+            def awsAccountID = sh(
+              returnStdout: true,
+              script: "aws sts get-caller-identity --query Account --output text"
+            ).trim()
+
+            sh """
+              aws ecr get-login-password --region ${AWS_REGION} |
+              docker login --username AWS --password-stdin \
+              ${awsAccountID}.dkr.ecr.${AWS_REGION}.amazonaws.com
+
+              docker build \
+                --build-arg MONGODB_URI=dummy \
+                --tag ${ECR_REPO}:${IMAGE_TAG} .
+            """
           }
         }
       }
-    } 
+    }
+
+    stage('Push Image to ECR') {
+      steps {
+        script {
+          withAWS(region: AWS_REGION, credentials: 'wm-ps-user-ecr') {
+            def awsAccountID = sh(
+              returnStdout: true,
+              script: "aws sts get-caller-identity --query Account --output text"
+            ).trim()
+
+            sh """
+              docker tag ${ECR_REPO}:${IMAGE_TAG} \
+                ${awsAccountID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}
+
+              docker push \
+                ${awsAccountID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}
+            """
+          }
+        }
+      }
+    }
 
     stage('Deploy Docker Container') {
       steps {
         script {
           sshagent([DEPLOYMENT_KEY]) {
             withAWS(region: AWS_REGION, credentials: 'wm-ps-user-ecr') {
-              def awsAccountID = sh(returnStdout: true, script: "aws sts get-caller-identity --query Account --output text").trim()
-              def containerExists = sh(returnStdout: true, script: "ssh -o StrictHostKeyChecking=no ubuntu@${REMOTE_SERVER} 'docker ps -a --filter name=${CONTAINER_NAME} --format \"{{.Names}}\"'")
-              
-              // Stop and remove the existing container if it exists
-              if (containerExists.trim() != '') {
+
+              def awsAccountID = sh(
+                returnStdout: true,
+                script: "aws sts get-caller-identity --query Account --output text"
+              ).trim()
+
+              def containerExists = sh(
+                returnStdout: true,
+                script: "ssh -o StrictHostKeyChecking=no ubuntu@${REMOTE_SERVER} 'docker ps -a --filter name=${CONTAINER_NAME} --format \"{{.Names}}\"'"
+              ).trim()
+
+              if (containerExists) {
                 sh "ssh -o StrictHostKeyChecking=no ubuntu@${REMOTE_SERVER} 'docker rm -f ${CONTAINER_NAME}'"
-                echo "Container deleted: ${CONTAINER_NAME}"
               }
-              // comment old code
-              // def ecrLogin = sh(returnStdout: true, script: "aws ecr get-login --no-include-email --region ${AWS_REGION}")
-             // sh "ssh -o StrictHostKeyChecking=no ubuntu@${REMOTE_SERVER} '${ecrLogin}'"
 
-              // Authenticate Docker on the remote server without exposing the password in logs
-                    sh """
-                        aws ecr get-login-password --region ${AWS_REGION} | ssh -o StrictHostKeyChecking=no ubuntu@${REMOTE_SERVER} 'docker login --username AWS --password-stdin ${awsAccountID}.dkr.ecr.${AWS_REGION}.amazonaws.com'
-                    """
+              sh """
+                aws ecr get-login-password --region ${AWS_REGION} |
+                ssh -o StrictHostKeyChecking=no ubuntu@${REMOTE_SERVER} \
+                'docker login --username AWS --password-stdin \
+                ${awsAccountID}.dkr.ecr.${AWS_REGION}.amazonaws.com'
+              """
 
-              // Pull and run the new Docker image on the remote server
               sh "ssh -o StrictHostKeyChecking=no ubuntu@${REMOTE_SERVER} 'docker pull ${awsAccountID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}'"
+
               def shellQuote = { value ->
                 def sanitized = (value ?: '').replace("'", "'\"'\"'")
                 return "'${sanitized}'"
               }
-              def environmentAssignments = [
+
+              def envVars = [
                 "AUTH_SECRET=${shellQuote(AUTH_SECRET)}",
                 "AUTH_GOOGLE_ID=${shellQuote(AUTH_GOOGLE_ID)}",
                 "AUTH_GOOGLE_SECRET=${shellQuote(AUTH_GOOGLE_SECRET)}",
@@ -106,12 +112,27 @@ pipeline {
                 "AUTH_TRUST_HOST='true'",
                 "AUTH_URL='https://docsflow.wavemaker.com'"
               ].join(' ')
-              def remoteRunCommand = "${environmentAssignments} docker run -d --name ${CONTAINER_NAME} -p ${HTTP_PORT}:3000 -e AUTH_SECRET -e AUTH_GOOGLE_ID -e AUTH_GOOGLE_SECRET -e MONGODB_URI -e GITHUB_TOKEN -e GITHUB_WEBHOOK_SECRET -e AUTH_TRUST_HOST -e AUTH_URL ${awsAccountID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}"
-              sh "ssh -o StrictHostKeyChecking=no ubuntu@${REMOTE_SERVER} ${shellQuote(remoteRunCommand)}"
+
+              def runCmd = """
+                ${envVars} docker run -d \
+                  --name ${CONTAINER_NAME} \
+                  -p ${HTTP_PORT}:3000 \
+                  -e AUTH_SECRET \
+                  -e AUTH_GOOGLE_ID \
+                  -e AUTH_GOOGLE_SECRET \
+                  -e MONGODB_URI \
+                  -e GITHUB_TOKEN \
+                  -e GITHUB_WEBHOOK_SECRET \
+                  -e AUTH_TRUST_HOST \
+                  -e AUTH_URL \
+                  ${awsAccountID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}
+              """
+
+              sh "ssh -o StrictHostKeyChecking=no ubuntu@${REMOTE_SERVER} ${shellQuote(runCmd)}"
             }
           }
         }
-      } 
-    } 
+      }
+    }
   }
 }
