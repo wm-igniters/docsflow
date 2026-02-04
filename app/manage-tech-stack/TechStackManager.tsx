@@ -412,7 +412,7 @@ function ArrayEditor({
                     <div className="flex items-center justify-between mb-1">
                         <div className="flex items-center gap-2">
                             <div className={`px-2 py-0.5 rounded text-[10px] font-black tracking-widest ${isPositionChanged ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'}`}>
-                                POS: {idx + 1}
+                                Position: {idx + 1}
                                 {isPositionChanged && (
                                     <span className="ml-1 opacity-60">({origGithubIdx + 1} → {idx + 1})</span>
                                 )}
