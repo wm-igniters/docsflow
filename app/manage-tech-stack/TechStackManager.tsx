@@ -973,27 +973,34 @@ export default function TechStackManager() {
   };
 
   const onPublish = async () => {
-    if (!selectedVersion || !localData) return;
+    if (!selectedVersion) return;
     
     setIsPublishing(true);
-    setToast({ message: "Publishing to GitHub...", type: 'info' });
+    setToast({ message: "Creating PR on GitHub...", type: 'info' });
 
     try {
         const response = await fetch('/api/github/publish', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                version: selectedVersion,
-                data: localData
-            })
+            body: JSON.stringify({}) // No payload needed, API finds modified docs
         });
 
         const result = await response.json();
 
         if (response.ok) {
-            setToast({ message: `Successfully published to ${result.branch}!`, type: 'success' });
-            // Ensure isModified is synced if this was published from unsaved state?
-            // Usually we'd want to save draft too, but let's keep it simple.
+            setToast({ 
+              message: `Successfully created PR!`, 
+              type: 'success' 
+            });
+            
+            // If PR URL is provided, open it or show it
+            if (result.pr_url) {
+                window.open(result.pr_url, '_blank');
+                console.log("PR Created:", result.pr_url);
+            }
+            
+            // Reload the latest data to sync UI state
+            await loadLatestSelectedData();
         } else {
             console.error("Publish failure details:", result.details);
             alert(`Failed to publish: ${result.error}${result.details ? '\n\nDetails: ' + JSON.stringify(result.details) : ''}`);
@@ -1005,9 +1012,10 @@ export default function TechStackManager() {
         setToast({ message: "Publish error", type: 'error' });
     } finally {
         setIsPublishing(false);
-        setTimeout(() => setToast(null), 5000);
+        setTimeout(() => setToast(null), 10000); // 10s for PR link visibility
     }
   };
+
 
   // Handle Drag End
   const handleDragEnd = (event: any) => {
