@@ -110,7 +110,7 @@ pipeline {
                 "GITHUB_TOKEN=${shellQuote(GITHUB_TOKEN)}",
                 "GITHUB_WEBHOOK_SECRET=${shellQuote(GITHUB_WEBHOOK_SECRET)}",
                 "AUTH_TRUST_HOST='true'",
-                "AUTH_URL='https://docsflow.wavemaker.com'"
+                "AUTH_URL='https://docsflow.wavemaker.ai'"
               ].join(' ')
 
               def runCmd = """
