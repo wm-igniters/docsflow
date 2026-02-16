@@ -1724,6 +1724,7 @@ export default function TechStackManager() {
                                             width={32} 
                                             height={32} 
                                             className="rounded-full ring-2 ring-slate-50"
+                                            unoptimized
                                         />
                                     ) : (
                                         <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 font-bold text-xs">
