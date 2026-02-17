@@ -56,7 +56,7 @@ pipeline {
           env.AUTH_URL       = config.authUrl
           env.IMAGE_TAG      = config.imageTag
 
-          echo "Deploying branch: ${env.BRANCH_NAME}"
+          echo "Deploying branch: ${env.branchName}"
           echo "Container: ${env.CONTAINER_NAME}"
           echo "Port: ${env.HTTP_PORT}"
           echo "Auth URL: ${env.AUTH_URL}"
