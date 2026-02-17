@@ -25,6 +25,12 @@ pipeline {
       steps {
         script {
 
+          def rawBranch = (env.BRANCH_NAME ?: env.GIT_BRANCH ?: '')
+          def branchName = rawBranch.replaceFirst(/^origin\//, '').trim()
+          if (!branchName) {
+            error "Unable to resolve branch name. Ensure this runs in a multibranch pipeline or set BRANCH_NAME/GIT_BRANCH."
+          }
+
           def branchConfig = [
             dev: [
               container: "dev-wm-docs-flow",
@@ -40,9 +46,9 @@ pipeline {
             ]
           ]
 
-          def config = branchConfig[env.BRANCH_NAME]
+          def config = branchConfig[branchName]
           if (!config) {
-            error "Unsupported branch for deploy: ${env.BRANCH_NAME}"
+            error "Unsupported branch for deploy: ${branchName}"
           }
 
           env.CONTAINER_NAME = config.container
@@ -50,6 +56,10 @@ pipeline {
           env.AUTH_URL       = config.authUrl
           env.IMAGE_TAG      = config.imageTag
 
+          echo "Deploying branch: ${env.BRANCH_NAME}"
+          echo "Container: ${env.CONTAINER_NAME}"
+          echo "Port: ${env.HTTP_PORT}"
+          echo "Auth URL: ${env.AUTH_URL}"
         }
       }
     }
