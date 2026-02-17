@@ -7,11 +7,8 @@ pipeline {
 
   environment {
     REMOTE_SERVER = "172.31.27.164"
-    CONTAINER_NAME = 'wm-docs-flow'
     AWS_REGION = 'us-east-1'
     ECR_REPO = 'poc-misc'
-    IMAGE_TAG = "prod.wm-docs-flow.${env.BUILD_NUMBER}"
-    HTTP_PORT = '8035'
     DEPLOYMENT_KEY = 'wm-docs-ssh-key'
 
     AUTH_SECRET = credentials('auth_secret')
@@ -23,6 +20,49 @@ pipeline {
   }
 
   stages {
+
+    stage('Set Environment Based on Branch') {
+      steps {
+        script {
+
+          def rawBranch = (env.BRANCH_NAME ?: env.GIT_BRANCH ?: '')
+          def branchName = rawBranch.replaceFirst(/^origin\//, '').trim()
+          if (!branchName) {
+            error "Unable to resolve branch name. Ensure this runs in a multibranch pipeline or set BRANCH_NAME/GIT_BRANCH."
+          }
+
+          def branchConfig = [
+            dev: [
+              container: "dev-wm-docs-flow",
+              port     : "8022",
+              authUrl  : "https://next-docsflow.wavemaker.ai",
+              imageTag : "dev.wm-docs-flow.${env.BUILD_NUMBER}"
+            ],
+            main: [
+              container: "wm-docs-flow",
+              port     : "8035",
+              authUrl  : "https://docsflow.wavemaker.ai",
+              imageTag : "prod.wm-docs-flow.${env.BUILD_NUMBER}"
+            ]
+          ]
+
+          def config = branchConfig[branchName]
+          if (!config) {
+            error "Unsupported branch for deploy: ${branchName}"
+          }
+
+          env.CONTAINER_NAME = config.container
+          env.HTTP_PORT      = config.port
+          env.AUTH_URL       = config.authUrl
+          env.IMAGE_TAG      = config.imageTag
+
+          echo "Deploying branch: ${branchName}"
+          echo "Container: ${env.CONTAINER_NAME}"
+          echo "Port: ${env.HTTP_PORT}"
+          echo "Auth URL: ${env.AUTH_URL}"
+        }
+      }
+    }
 
     stage('Build Docker Image') {
       steps {
@@ -110,7 +150,7 @@ pipeline {
                 "GITHUB_TOKEN=${shellQuote(GITHUB_TOKEN)}",
                 "GITHUB_WEBHOOK_SECRET=${shellQuote(GITHUB_WEBHOOK_SECRET)}",
                 "AUTH_TRUST_HOST='true'",
-                "AUTH_URL='https://docsflow.wavemaker.ai'"
+                "AUTH_URL=${shellQuote(env.AUTH_URL)}"
               ].join(' ')
 
               def runCmd = """
