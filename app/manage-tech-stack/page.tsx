@@ -1,14 +1,13 @@
 import { auth } from "@/auth";
-import Image from "next/image";
-import Link from "next/link";
 import { 
-  User,
   Settings
 } from "lucide-react";
 import { redirect } from "next/navigation";
 
 import { TechStackProvider } from "./TechStackContext";
 import TechStackManager from "./TechStackManager";
+
+import Navbar from "@/components/Navbar";
 
 // Force dynamic rendering to prevent caching issues in production
 export const dynamic = 'force-dynamic';
@@ -23,55 +22,13 @@ export default async function ManageTechStack() {
   return (
     <TechStackProvider>
       <div className="min-h-screen bg-[#F8FAFC] flex flex-col max-h-screen overflow-hidden">
-        {/* Top Navbar */}
-        <nav className="border-b border-slate-200 bg-white/80 backdrop-blur-md sticky top-0 z-50 h-16 flex-none">
-          <div className="mx-auto flex h-full max-w-[1440px] items-center justify-between px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center gap-2">
-              <Link href="/app" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-                  <Image
-                    src="/favicon.svg"
-                    alt="DocsFlow Logo"
-                    width={32}
-                    height={32}
-                    className="rounded-lg shadow-sm"
-                    priority
-                  />
-                  <span className="text-xl font-bold tracking-tight text-slate-900">DocsFlow</span>
-                  <span className="inline-flex items-center rounded-md bg-blue-50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-blue-700 ring-1 ring-inset ring-blue-700/10">
-                    Beta
-                  </span>
-              </Link>
-              <span className="text-slate-300 mx-2">/</span>
-              <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 rounded-full border border-slate-200">
-                <Settings size={14} className="text-slate-500" />
-                <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">Manage Tech Stack</span>
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-3">
-                  <div className="text-right hidden sm:block">
-                    <p className="text-xs font-bold text-slate-900 leading-none mb-0.5">{session.user?.name}</p>
-                    <p className="text-[10px] text-slate-500 font-medium leading-none">{session.user?.email}</p>
-                  </div>
-                  {session.user?.image ? (
-                    <Image
-                      src={session.user.image}
-                      alt="Profile"
-                      width={36}
-                      height={36}
-                      className="rounded-full border-2 border-white shadow-sm"
-                      unoptimized
-                    />
-                  ) : (
-                    <div className="h-9 w-9 rounded-full bg-blue-100 flex items-center justify-center border-2 border-white shadow-sm text-blue-600 font-bold">
-                      {session.user?.name?.charAt(0) || <User size={18}/>}
-                    </div>
-                  )}
-              </div>
-            </div>
+        <Navbar session={session}>
+          <span className="text-slate-300 mx-2">/</span>
+          <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 rounded-full border border-slate-200">
+            <Settings size={14} className="text-slate-500" />
+            <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">Manage Tech Stack</span>
           </div>
-        </nav>
+        </Navbar>
 
         {/* Main Content Area */}
         <TechStackManager />
@@ -79,3 +36,4 @@ export default async function ManageTechStack() {
     </TechStackProvider>
   );
 }
+
