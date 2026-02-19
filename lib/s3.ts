@@ -5,9 +5,8 @@ import {
   DeleteObjectCommand, 
   ListObjectsV2Command, 
   HeadObjectCommand,
-  ObjectCannedACL
+  CopyObjectCommand
 } from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import crypto from "crypto";
 import { Readable } from "stream";
 
@@ -27,7 +26,6 @@ export interface UploadObjectProps {
   contentType?: string;
   additionalMetadata?: Record<string, string>;
   overwritePush?: boolean;
-  acl?: ObjectCannedACL;
 }
 
 export interface S3ObjectMetadata {
@@ -49,7 +47,6 @@ export async function uploadObject({
   contentType,
   additionalMetadata,
   overwritePush = true,
-  acl = "private",
 }: UploadObjectProps): Promise<{ key: string; url: string }> {
   const key = id || crypto.randomUUID();
 
@@ -70,7 +67,6 @@ export async function uploadObject({
     Body: body,
     ContentType: contentType,
     Metadata: additionalMetadata,
-    ACL: acl,
   });
 
   await s3Client.send(command);
@@ -82,9 +78,25 @@ export async function uploadObject({
 }
 
 /**
- * Retrieves an object from S3.
+ * Checks if an object exists in S3.
  */
-export async function getObject(key: string): Promise<any> {
+export async function existsObject(key: string): Promise<boolean> {
+  try {
+    await s3Client.send(new HeadObjectCommand({ Bucket: BUCKET_NAME, Key: key }));
+    return true;
+  } catch (error: any) {
+    if (error.name === "NotFound" || error.$metadata?.httpStatusCode === 404) {
+      return false;
+    }
+    throw error;
+  }
+}
+
+/**
+ * Retrieves an object from S3.
+ * Returns the stream body.
+ */
+export async function getObject(key: string): Promise<Readable | any> {
   const command = new GetObjectCommand({
     Bucket: BUCKET_NAME,
     Key: key,
@@ -92,6 +104,21 @@ export async function getObject(key: string): Promise<any> {
 
   const response = await s3Client.send(command);
   return response.Body;
+}
+
+/**
+ * Helper to convert S3 stream to string.
+ */
+export async function getObjectAsString(key: string): Promise<string> {
+  const body = await getObject(key);
+  if (body instanceof Readable) {
+    const chunks = [];
+    for await (const chunk of body) {
+      chunks.push(chunk);
+    }
+    return Buffer.concat(chunks).toString("utf-8");
+  }
+  return body.toString();
 }
 
 /**
@@ -179,13 +206,31 @@ export async function getObjectsMetadata(prefix?: string): Promise<S3ObjectMetad
 }
 
 /**
- * Generates a signed URL for an object (valid for 1 hour by default).
+ * Copies an object within the bucket.
  */
-export async function getSignedUrlForObject(key: string, expiresIn: number = 3600): Promise<string> {
-  const command = new GetObjectCommand({
+export async function copyObject(sourceKey: string, destinationKey: string): Promise<void> {
+  const command = new CopyObjectCommand({
     Bucket: BUCKET_NAME,
-    Key: key,
+    CopySource: `${BUCKET_NAME}/${sourceKey}`,
+    Key: destinationKey,
   });
 
-  return getSignedUrl(s3Client, command, { expiresIn });
+  await s3Client.send(command);
 }
+
+/**
+ * Moves an object by copying it and then deleting the source.
+ */
+export async function moveObject(sourceKey: string, destinationKey: string): Promise<void> {
+  await copyObject(sourceKey, destinationKey);
+  await deleteObject(sourceKey);
+}
+
+/**
+ * Gets the public URL for an object.
+ */
+export function getObjectUrl(key: string): string {
+  return `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
+}
+
+
