@@ -9,7 +9,7 @@ import { GITHUB_CONFIG, DB_CONFIG } from "@/lib/config.mjs";
 import { syncDocTree, isEqual } from "@/lib/services/SyncService";
 
 const { GITHUB_TOKEN } = process.env;
-const { OWNER, REPO, BRANCH, DATA_PATH, PATHS } = GITHUB_CONFIG;
+const { OWNER, REPO, BRANCH, PATHS } = GITHUB_CONFIG;
 const { DB_NAMES, COLLECTIONS } = DB_CONFIG;
 
 const octokit = new Octokit({ auth: GITHUB_TOKEN });
@@ -139,10 +139,10 @@ export async function POST(req: NextRequest) {
 
       // 2. Original Tech Stack Logic (Preserved)
       const tsModified = Array.from(changedFiles).filter(
-        (f) => f.startsWith(DATA_PATH) && f.endsWith(".json"),
+        (f) => f.startsWith(PATHS.TECH_STACK) && f.endsWith(".json"),
       );
       const tsRemoved = Array.from(removedFiles).filter(
-        (f) => f.startsWith(DATA_PATH) && f.endsWith(".json"),
+        (f) => f.startsWith(PATHS.TECH_STACK) && f.endsWith(".json"),
       );
 
       if (tsModified.length > 0 || tsRemoved.length > 0) {

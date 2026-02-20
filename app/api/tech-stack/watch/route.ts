@@ -15,8 +15,8 @@ export async function GET(req: NextRequest) {
     async start(controller) {
       let isStreamClosed = false;
 
-      const conn = await connectDB(DB_CONFIG.DOCS_DB);
-      const TechStackModel = conn.models.TechStack || conn.model('TechStack', TechStackSchema, DB_CONFIG.TECH_STACK_COLLECTION);
+      const conn = await connectDB(DB_CONFIG.DB_NAMES.DOCS);
+      const TechStackModel = conn.models.TechStack || conn.model('TechStack', TechStackSchema, DB_CONFIG.COLLECTIONS.TECH_STACK);
 
       let changeStream: any = null;
       let isPolling = false;

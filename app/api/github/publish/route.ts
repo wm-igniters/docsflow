@@ -17,7 +17,7 @@ export async function POST(req: Request) {
     const session = await auth();
     const userEmail = session?.user?.email || 'unknown-user';
 
-    const { OWNER, REPO, BRANCH, DATA_PATH } = GITHUB_CONFIG;
+    const { OWNER, REPO, BRANCH, PATHS } = GITHUB_CONFIG;
     const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 
     if (!GITHUB_TOKEN) {
@@ -25,8 +25,8 @@ export async function POST(req: Request) {
     }
 
     const octokit = new Octokit({ auth: GITHUB_TOKEN });
-    const conn = await connectDB(DB_CONFIG.DOCS_DB);
-    const TechStackModel = conn.models.TechStack || conn.model<ITechStack>('TechStack', TechStackSchema, DB_CONFIG.TECH_STACK_COLLECTION);
+    const conn = await connectDB(DB_CONFIG.DB_NAMES.DOCS);
+    const TechStackModel = conn.models.TechStack || conn.model<ITechStack>('TechStack', TechStackSchema, DB_CONFIG.COLLECTIONS.TECH_STACK);
 
     const { docId } = await req.json().catch(() => ({ docId: null }));
 
@@ -68,7 +68,7 @@ export async function POST(req: Request) {
     const conflicting: ITechStack[] = [];
 
     for (const doc of modifiedDocs) {
-      const filePath = `${DATA_PATH}/${doc._id}`;
+      const filePath = `${PATHS.TECH_STACK}/${doc._id}`;
       try {
         const { data: remoteFile } = await octokit.rest.repos.getContent({
           owner: OWNER,
@@ -105,7 +105,7 @@ export async function POST(req: Request) {
       const treeItems = await Promise.all(docs.map(async (doc) => {
         const content = JSON.stringify(doc.docs_flow_data, null, 2);
         return {
-          path: `${DATA_PATH}/${doc._id}`,
+          path: `${PATHS.TECH_STACK}/${doc._id}`,
           mode: '100644' as const,
           type: 'blob' as const,
           content: content,

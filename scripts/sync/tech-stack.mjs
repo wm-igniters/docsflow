@@ -9,7 +9,7 @@ import { GITHUB_CONFIG, DB_CONFIG } from '../../lib/config.mjs';
  * 3. Checks for version/content mismatches.
  */
 export async function syncTechStack(connection, octokit) {
-  const { OWNER, REPO, BRANCH, DATA_PATH } = GITHUB_CONFIG;
+  const { OWNER, REPO, BRANCH, PATHS } = GITHUB_CONFIG;
   const { COLLECTIONS } = DB_CONFIG;
 
   function isEqual(a, b) {
@@ -45,12 +45,12 @@ export async function syncTechStack(connection, octokit) {
   const { data: files } = await octokit.rest.repos.getContent({
     owner: OWNER,
     repo: REPO,
-    path: DATA_PATH,
+    path: PATHS.TECH_STACK,
     ref: BRANCH,
   });
 
   if (!Array.isArray(files)) {
-    throw new Error(`Data path ${DATA_PATH} is not a directory`);
+    throw new Error(`Data path ${PATHS.TECH_STACK} is not a directory`);
   }
 
   const githubFiles = files.filter(f => f.name.endsWith('.json'));

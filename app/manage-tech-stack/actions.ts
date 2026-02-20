@@ -9,10 +9,10 @@ import { auth } from "@/auth";
 
 export async function syncTechStack() {
   try {
-    const conn = await connectDB(DB_CONFIG.DOCS_DB);
+    const conn = await connectDB(DB_CONFIG.DB_NAMES.DOCS);
     
     // Bind model to this specific connection
-    const TechStackModel = conn.models.TechStack || conn.model<ITechStack>('TechStack', TechStackSchema, DB_CONFIG.TECH_STACK_COLLECTION);
+    const TechStackModel = conn.models.TechStack || conn.model<ITechStack>('TechStack', TechStackSchema, DB_CONFIG.COLLECTIONS.TECH_STACK);
 
     console.log("Starting GitHub Sync...");
     const files = await fetchTechStackFiles();
@@ -147,8 +147,8 @@ export async function updateDocsFlowData(version: string, newData: any, lastKnow
   }
 
   try {
-    const conn = await connectDB(DB_CONFIG.DOCS_DB);
-    const TechStackModel = conn.models.TechStack || conn.model<ITechStack>('TechStack', TechStackSchema, DB_CONFIG.TECH_STACK_COLLECTION);
+    const conn = await connectDB(DB_CONFIG.DB_NAMES.DOCS);
+    const TechStackModel = conn.models.TechStack || conn.model<ITechStack>('TechStack', TechStackSchema, DB_CONFIG.COLLECTIONS.TECH_STACK);
     
     // Fetch existing document to check for conflicts and compute diff
     const existing = await TechStackModel.findOne({ version });
@@ -208,8 +208,8 @@ export async function updateDocsFlowData(version: string, newData: any, lastKnow
 
 export async function getVersions() {
   try {
-    const conn = await connectDB(DB_CONFIG.DOCS_DB);
-    const TechStackModel = conn.models.TechStack || conn.model<ITechStack>('TechStack', TechStackSchema, DB_CONFIG.TECH_STACK_COLLECTION);
+    const conn = await connectDB(DB_CONFIG.DB_NAMES.DOCS);
+    const TechStackModel = conn.models.TechStack || conn.model<ITechStack>('TechStack', TechStackSchema, DB_CONFIG.COLLECTIONS.TECH_STACK);
     
     // Fetch only version field
     const docs = await TechStackModel.find({}, { version: 1 }).lean();
@@ -222,8 +222,8 @@ export async function getVersions() {
 
 export async function getVersionDetails(version: string) {
   try {
-    const conn = await connectDB(DB_CONFIG.DOCS_DB);
-    const TechStackModel = conn.models.TechStack || conn.model<ITechStack>('TechStack', TechStackSchema, DB_CONFIG.TECH_STACK_COLLECTION);
+    const conn = await connectDB(DB_CONFIG.DB_NAMES.DOCS);
+    const TechStackModel = conn.models.TechStack || conn.model<ITechStack>('TechStack', TechStackSchema, DB_CONFIG.COLLECTIONS.TECH_STACK);
     
     // Find doc by version
     const doc = await TechStackModel.findOne({ version }).lean();

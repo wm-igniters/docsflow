@@ -13,10 +13,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
       try {
         console.log("SignIn Triggered for email:", user.email);
-        const conn = await connectDB(DB_CONFIG.USER_DB);
+        const conn = await connectDB(DB_CONFIG.DB_NAMES.USER);
         
         // Bind model to this specific connection
-        const UserModel = conn.models.User || conn.model<IUser>('User', UserSchema, DB_CONFIG.USER_COLLECTION);
+        const UserModel = conn.models.User || conn.model<IUser>('User', UserSchema, DB_CONFIG.COLLECTIONS.USERS);
         
         const existingUser = await UserModel.findById(user.email);
 

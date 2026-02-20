@@ -2,7 +2,7 @@ import { Octokit } from "octokit";
 import { GITHUB_CONFIG } from "./config.mjs";
 
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
-const { OWNER, REPO, BRANCH, DATA_PATH } = GITHUB_CONFIG;
+const { OWNER, REPO, BRANCH, PATHS } = GITHUB_CONFIG;
 
 // Initialize Octokit
 const octokit = new Octokit({
@@ -38,7 +38,7 @@ export async function fetchTechStackFiles() {
     const { data: files } = await octokit.rest.repos.getContent({
       owner: OWNER,
       repo: REPO,
-      path: DATA_PATH,
+      path: PATHS.TECH_STACK,
       ref: BRANCH,
     });
 
