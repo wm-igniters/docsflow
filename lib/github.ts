@@ -83,3 +83,25 @@ export async function fetchTechStackFiles() {
     throw error;
   }
 }
+
+export async function getFileContent(path: string, ref: string = BRANCH) {
+  try {
+    const { data } = await octokit.rest.repos.getContent({
+      owner: OWNER,
+      repo: REPO,
+      path: path,
+      ref: ref,
+    });
+
+    // @ts-ignore
+    if (data.type !== "file" || !data.content) return null;
+
+    // @ts-ignore
+    const buf = Buffer.from(data.content, "base64");
+    return buf.toString("utf-8");
+  } catch (error: any) {
+    if (error.status === 404) return null;
+    console.error(`Error fetching content for ${path}:`, error);
+    throw error;
+  }
+}
