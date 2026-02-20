@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document, Model } from 'mongoose';
+import { DB_CONFIG } from '../lib/config.mjs';
 
 export interface ISyncMeta extends Document {
   key: string; // e.g., "tech-stack-sync"
@@ -29,6 +30,11 @@ export const SyncMetaSchema: Schema = new Schema(
 );
 
 const SyncMeta: Model<ISyncMeta> =
-  mongoose.models.SyncMeta || mongoose.model<ISyncMeta>('SyncMeta', SyncMetaSchema, 'meta_data');
+  mongoose.models.SyncMeta ||
+  mongoose.model<ISyncMeta>(
+    "SyncMeta",
+    SyncMetaSchema,
+    DB_CONFIG.COLLECTIONS.META,
+  );
 
 export default SyncMeta;

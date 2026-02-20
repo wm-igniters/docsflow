@@ -6,32 +6,22 @@ import { Octokit } from "octokit";
 import { TechStackSchema as TS_Schema, ITechStack } from "@/models/TechStack";
 import { SyncMetaSchema, ISyncMeta } from "@/models/SyncMeta";
 import { GITHUB_CONFIG, DB_CONFIG } from "@/lib/config.mjs";
+import { syncDocTree, isEqual } from "@/lib/services/SyncService";
 
-const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
-const { OWNER, REPO, BRANCH, DATA_PATH } = GITHUB_CONFIG;
-const { DOCS_DB, TECH_STACK_COLLECTION } = DB_CONFIG;
+const { GITHUB_TOKEN } = process.env;
+const { OWNER, REPO, BRANCH, DATA_PATH, PATHS } = GITHUB_CONFIG;
+const { DB_NAMES, COLLECTIONS } = DB_CONFIG;
 
 const octokit = new Octokit({ auth: GITHUB_TOKEN });
 
 /**
- * Deep comparison helper
+ * Syncs a single tech stack file from GitHub to MongoDB (Original logic preserved)
  */
-function isEqual(a: any, b: any): boolean {
-  if (a === b) return true;
-  if (typeof a !== "object" || a === null || typeof b !== "object" || b === null) return false;
-  const keysA = Object.keys(a);
-  const keysB = Object.keys(b);
-  if (keysA.length !== keysB.length) return false;
-  for (const key of keysA) {
-    if (!keysB.includes(key) || !isEqual(a[key], b[key])) return false;
-  }
-  return true;
-}
-
-/**
- * Syncs a single tech stack file from GitHub to MongoDB
- */
-async function syncFile(TechStackModel: any, filePath: string, fileName: string) {
+async function syncTechStackFile(
+  TechStackModel: any,
+  filePath: string,
+  fileName: string,
+) {
   try {
     const [contentRes, metadata] = await Promise.all([
       octokit.rest.repos.getContent({
@@ -40,14 +30,16 @@ async function syncFile(TechStackModel: any, filePath: string, fileName: string)
         path: filePath,
         ref: BRANCH,
       }),
-      getFileMetadata(filePath, BRANCH)
+      getFileMetadata(filePath, BRANCH),
     ]);
 
-    // @ts-ignore
-    const content = JSON.parse(Buffer.from(contentRes.data.content, "base64").toString());
+    const content = JSON.parse(
+      Buffer.from((contentRes.data as any).content, "base64").toString(),
+    );
 
     const existingDoc = await TechStackModel.findById(fileName);
-    const hasNoDraft = !existingDoc || isEqual(existingDoc.data, existingDoc.docs_flow_data);
+    const hasNoDraft =
+      !existingDoc || isEqual(existingDoc.data, existingDoc.docs_flow_data);
 
     const updateFields: any = {
       version: fileName.replace(".json", ""),
@@ -69,10 +61,10 @@ async function syncFile(TechStackModel: any, filePath: string, fileName: string)
         $set: updateFields,
         $setOnInsert: {
           _id: fileName,
-          ...(hasNoDraft ? {} : { docs_flow_data: content })
-        }
+          ...(hasNoDraft ? {} : { docs_flow_data: content }),
+        },
       },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
+      { upsert: true, new: true, setDefaultsOnInsert: true },
     );
 
     // Set creation_timestamp if missing
@@ -83,7 +75,7 @@ async function syncFile(TechStackModel: any, filePath: string, fileName: string)
         repo: REPO,
         path: filePath,
         sha: BRANCH,
-        per_page: 100 // Try to get the very first one
+        per_page: 100,
       });
       const firstCommit = firstCommits[firstCommits.length - 1];
       if (firstCommit?.commit?.committer?.date) {
@@ -91,10 +83,10 @@ async function syncFile(TechStackModel: any, filePath: string, fileName: string)
         await doc.save();
       }
     }
-    console.log(`Successfully synced ${fileName}`);
+    console.log(`Successfully synced tech-stack: ${fileName}`);
     return true;
   } catch (err) {
-    console.error(`Error syncing ${fileName}:`, err);
+    console.error(`Error syncing tech-stack ${fileName}:`, err);
     return false;
   }
 }
@@ -105,13 +97,16 @@ export async function POST(req: NextRequest) {
     const signature = req.headers.get("x-hub-signature-256");
     const secret = process.env.GITHUB_WEBHOOK_SECRET;
 
-    if (!secret) return NextResponse.json({ error: "Secret not set" }, { status: 500 });
-    if (!signature) return NextResponse.json({ error: "No signature" }, { status: 401 });
+    if (!secret)
+      return NextResponse.json({ error: "Secret not set" }, { status: 500 });
+    if (!signature)
+      return NextResponse.json({ error: "No signature" }, { status: 401 });
 
     const hmac = crypto.createHmac("sha256", secret);
     const digest = "sha256=" + hmac.update(body).digest("hex");
 
-    if (signature !== digest) return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+    if (signature !== digest)
+      return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
 
     const payload = JSON.parse(body);
     const event = req.headers.get("x-github-event");
@@ -119,66 +114,84 @@ export async function POST(req: NextRequest) {
     console.log(`GitHub Webhook: ${event} on ${payload.ref}`);
 
     if (event === "push" && payload.ref === `refs/heads/${BRANCH}`) {
-      const conn = await connectDB(DOCS_DB);
-      
-      // Use existing models if available to prevent OverwriteModelError and avoid read-only delete error
-      const TechStackModel = (conn.models.TechStack as any) || conn.model<ITechStack>("TechStack", TS_Schema, TECH_STACK_COLLECTION);
-      // Process removed files first
-      const allRemoved = new Set<string>();
-      const allModified = new Set<string>();
+      const conn = await connectDB(DB_NAMES.DOCS);
+
+      const changedFiles = new Set<string>();
+      const removedFiles = new Set<string>();
 
       (payload.commits || []).forEach((commit: any) => {
-        (commit.removed || []).forEach((f: string) => f.startsWith(DATA_PATH) && f.endsWith(".json") && allRemoved.add(f));
-        (commit.added || []).forEach((f: string) => f.startsWith(DATA_PATH) && f.endsWith(".json") && allModified.add(f));
-        (commit.modified || []).forEach((f: string) => f.startsWith(DATA_PATH) && f.endsWith(".json") && allModified.add(f));
+        (commit.added || []).forEach((f: string) => changedFiles.add(f));
+        (commit.modified || []).forEach((f: string) => changedFiles.add(f));
+        (commit.removed || []).forEach((f: string) => removedFiles.add(f));
       });
 
-      // Handle removals
-      for (const filePath of allRemoved) {
-        const fileName = filePath.split("/").pop();
-        
-        // 🔥 Protection: Only delete if local draft matches global data
-        const doc = await TechStackModel.findById(fileName);
-        if (doc) {
-           const hasChanges = !isEqual(doc.data, doc.docs_flow_data);
-           if (hasChanges) {
-              console.log(`Skipping deletion of ${fileName} (Found local un-published changes)`);
-              // Mark as draft so it's clear it's not in sync with GitHub anymore
-              await TechStackModel.updateOne({ _id: fileName }, { 
-                $set: { 
-                  status: 'draft', 
-                  last_updated_by: 'github' 
-                } 
-              });
-           } else {
-              await TechStackModel.deleteOne({ _id: fileName });
-              console.log(`Deleted ${fileName} (No local changes found)`);
-           }
+      // 1. Check WATCH_PATHS for Doc Tree Sync
+      for (const watchPath of Object.values(PATHS)) {
+        const hasChange =
+          Array.from(changedFiles).some((f) => f.startsWith(watchPath)) ||
+          Array.from(removedFiles).some((f) => f.startsWith(watchPath));
+
+        if (hasChange) {
+          console.log(`Triggering Doc Tree Sync for ${watchPath}`);
+          await syncDocTree(conn, octokit, watchPath);
         }
       }
 
-      // Handle additions and modifications
-      for (const filePath of allModified) {
-        const fileName = filePath.split("/").pop();
-        if (fileName) {
-          // Check if we strictly need to sync (Compare commit ID and Timestamp)
-          const existingDoc = await TechStackModel.findById(fileName);
-          const metadata = await getFileMetadata(filePath, BRANCH);
+      // 2. Original Tech Stack Logic (Preserved)
+      const tsModified = Array.from(changedFiles).filter(
+        (f) => f.startsWith(DATA_PATH) && f.endsWith(".json"),
+      );
+      const tsRemoved = Array.from(removedFiles).filter(
+        (f) => f.startsWith(DATA_PATH) && f.endsWith(".json"),
+      );
 
-          let isNewer = true;
-          if (metadata) {
-            isNewer = !existingDoc || 
-                      existingDoc.last_commit_id !== metadata.last_commit_id ||
-                      new Date(metadata.last_update_timestamp!) > new Date(existingDoc.last_update_timestamp);
-          } else {
-            console.log(`Could not fetch metadata for ${fileName}, forcing sync.`);
+      if (tsModified.length > 0 || tsRemoved.length > 0) {
+        const TechStackModel =
+          (conn.models.TechStack as any) ||
+          conn.model<ITechStack>(
+            "TechStack",
+            TS_Schema,
+            COLLECTIONS.TECH_STACK,
+          );
+
+        // Removals
+        for (const filePath of tsRemoved) {
+          const fileName = filePath.split("/").pop();
+          const doc = await TechStackModel.findById(fileName);
+          if (doc) {
+            const hasChanges = !isEqual(doc.data, doc.docs_flow_data);
+            if (hasChanges) {
+              console.log(
+                `Skipping deletion of tech-stack ${fileName} (Found local changes)`,
+              );
+              await TechStackModel.updateOne(
+                { _id: fileName },
+                { $set: { status: "draft", last_updated_by: "github" } },
+              );
+            } else {
+              await TechStackModel.deleteOne({ _id: fileName });
+              console.log(`Deleted tech-stack ${fileName}`);
+            }
           }
+        }
 
-          if (isNewer) {
-             const ok = await syncFile(TechStackModel, filePath, fileName);
-             if (!ok) console.error(`Failed to sync ${fileName}`);
-          } else {
-             console.log(`Skipping ${fileName} (Already up to date)`);
+        // Modifications
+        for (const filePath of tsModified) {
+          const fileName = filePath.split("/").pop();
+          if (fileName) {
+            const existingDoc = await TechStackModel.findById(fileName);
+            const metadata = await getFileMetadata(filePath, BRANCH);
+            let isNewer = true;
+            if (metadata) {
+              isNewer =
+                !existingDoc ||
+                existingDoc.last_commit_id !== metadata.last_commit_id ||
+                new Date(metadata.last_update_timestamp!) >
+                  new Date(existingDoc.last_update_timestamp);
+            }
+            if (isNewer) {
+              await syncTechStackFile(TechStackModel, filePath, fileName);
+            }
           }
         }
       }

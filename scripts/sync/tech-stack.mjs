@@ -10,7 +10,7 @@ import { GITHUB_CONFIG, DB_CONFIG } from '../../lib/config.mjs';
  */
 export async function syncTechStack(connection, octokit) {
   const { OWNER, REPO, BRANCH, DATA_PATH } = GITHUB_CONFIG;
-  const { TECH_STACK_COLLECTION } = DB_CONFIG;
+  const { COLLECTIONS } = DB_CONFIG;
 
   function isEqual(a, b) {
     if (a === b) return true;
@@ -37,7 +37,7 @@ export async function syncTechStack(connection, octokit) {
     docs_flow_data: mongoose.Schema.Types.Mixed,
   }, { timestamps: true });
 
-  const TechStack = connection.model('TechStack', TechStackSchema, TECH_STACK_COLLECTION);
+  const TechStack = connection.model('TechStack', TechStackSchema, COLLECTIONS.TECH_STACK);
 
   console.log('--- Tech Stack Integrity Check ---');
   

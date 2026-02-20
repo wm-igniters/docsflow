@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document, Model } from 'mongoose';
+import { DB_CONFIG } from '../lib/config.mjs';
  
 export interface IHistoryEntry {
   timestamp: Date;
@@ -103,6 +104,11 @@ TechStackSchema.set('toJSON', { virtuals: false });
 TechStackSchema.set('toObject', { virtuals: false });
 
 const TechStack: Model<ITechStack> =
-  mongoose.models.TechStack || mongoose.model<ITechStack>('TechStack', TechStackSchema, 'tech_stack_data');
+  mongoose.models.TechStack ||
+  mongoose.model<ITechStack>(
+    "TechStack",
+    TechStackSchema,
+    DB_CONFIG.COLLECTIONS.TECH_STACK,
+  );
 
 export default TechStack;
