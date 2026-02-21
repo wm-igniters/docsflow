@@ -16,6 +16,7 @@ import dynamic from 'next/dynamic';
 
 const MdxEditor = dynamic(() => import('@/components/MdxEditor'), { ssr: false });
 const CodeMirrorEditor = dynamic(() => import('@/components/CodeMirrorEditor'), { ssr: false });
+const SvgEditor = dynamic(() => import('@/components/SvgEditor'), { ssr: false });
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -52,6 +53,7 @@ interface EditorPageProps {
   content: string;
   githubContent: string | null;
   docsflowContent: string | null;
+  status: 'new' | 'modified' | 'published' | null;
   onSave: (contentOverride?: string) => Promise<boolean>;
   onPublish: () => void;
   history: any[];
@@ -215,6 +217,7 @@ export default function EditorPage({
   content,
   githubContent,
   docsflowContent,
+  status,
   onSave,
   onPublish,
   history,
@@ -231,6 +234,53 @@ export default function EditorPage({
   
   const nestedTree = buildTree(filteredTree);
   const baseContent = docsflowContent ?? githubContent ?? "";
+  const canPublish = !!selectedPath && (status === 'new' || status === 'modified');
+  const selectedExtension = selectedPath?.split('.').pop()?.toLowerCase() || '';
+  const isSvg = selectedExtension === 'svg';
+  const isImageAsset = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'avif'].includes(selectedExtension);
+  const isVideoAsset = ['mp4', 'webm', 'mov', 'm4v', 'avi', 'mkv'].includes(selectedExtension);
+  const isAudioAsset = ['mp3', 'wav', 'ogg', 'm4a', 'flac', 'aac'].includes(selectedExtension);
+  const isAsset = isImageAsset || isVideoAsset || isAudioAsset;
+
+  const looksBase64 = (value: string) => {
+    if (!value) return false;
+    if (value.startsWith('data:')) return false;
+    if (value.length % 4 !== 0) return false;
+    if (/\s/.test(value)) return false;
+    return /^[A-Za-z0-9+/=]+$/.test(value);
+  };
+
+  const assetMimeByExtension: Record<string, string> = {
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    png: 'image/png',
+    gif: 'image/gif',
+    webp: 'image/webp',
+    bmp: 'image/bmp',
+    avif: 'image/avif',
+    mp4: 'video/mp4',
+    webm: 'video/webm',
+    mov: 'video/quicktime',
+    m4v: 'video/x-m4v',
+    avi: 'video/x-msvideo',
+    mkv: 'video/x-matroska',
+    mp3: 'audio/mpeg',
+    wav: 'audio/wav',
+    ogg: 'audio/ogg',
+    m4a: 'audio/mp4',
+    flac: 'audio/flac',
+    aac: 'audio/aac',
+  };
+
+  const getAssetSrc = (value: string) => {
+    if (!value) return '';
+    if (value.startsWith('data:')) return value;
+    if (looksBase64(value)) {
+      const mime = assetMimeByExtension[selectedExtension] || 'application/octet-stream';
+      return `data:${mime};base64,${value}`;
+    }
+    return value;
+  };
 
   const markDirty = useCallback((nextValue: string) => {
     currentContentRef.current = nextValue;
@@ -324,13 +374,15 @@ export default function EditorPage({
                   <Button 
                     size="sm" 
                     onClick={onPublish}
-                    disabled={!selectedPath || isLoading}
+                    disabled={!canPublish || isLoading}
                     className="h-8 gap-2 rounded-full px-4 text-[11px] font-bold"
                   >
                     <Send size={14} /> Publish
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>Push to GitHub</TooltipContent>
+                <TooltipContent>
+                  {canPublish ? 'Push to GitHub' : 'No saved changes to publish'}
+                </TooltipContent>
               </Tooltip>
 
               <Separator orientation="vertical" className="h-4 mx-1" />
@@ -371,6 +423,42 @@ export default function EditorPage({
                     onChange={markDirty}
                     documentPath={selectedPath}
                   />
+                ) : isSvg ? (
+                  <SvgEditor
+                    key={selectedPath}
+                    initialValue={content}
+                    baseValue={baseContent}
+                    onChange={markDirty}
+                  />
+                ) : isAsset ? (
+                  <div className="h-full w-full flex flex-col">
+                    <div className="px-4 py-3 text-[11px] font-semibold text-muted-foreground border-b bg-muted/40">
+                      Asset editing is not supported yet.
+                    </div>
+                    <div className="flex-1 min-h-0 p-4 flex items-center justify-center bg-background">
+                      {isImageAsset && (
+                        <img
+                          src={getAssetSrc(content)}
+                          alt={selectedPath.split('/').pop() || 'asset'}
+                          className="max-h-full max-w-full object-contain"
+                        />
+                      )}
+                      {isVideoAsset && (
+                        <video
+                          src={getAssetSrc(content)}
+                          controls
+                          className="max-h-full max-w-full"
+                        />
+                      )}
+                      {isAudioAsset && (
+                        <audio
+                          src={getAssetSrc(content)}
+                          controls
+                          className="w-full"
+                        />
+                      )}
+                    </div>
+                  </div>
                 ) : (
                   <CodeMirrorEditor
                     key={selectedPath}

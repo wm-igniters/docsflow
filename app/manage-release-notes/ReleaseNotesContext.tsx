@@ -9,6 +9,7 @@ interface ReleaseNotesContextType {
   selectedContent: string;
   githubContent: string | null;
   docsflowContent: string | null;
+  status: 'new' | 'modified' | 'published' | null;
   history: any[];
   isLoading: boolean;
   isLoadingContent: boolean;
@@ -28,6 +29,7 @@ export function ReleaseNotesProvider({ children }: { children: React.ReactNode }
   const [selectedContent, setSelectedContent] = useState("");
   const [githubContent, setGithubContent] = useState<string | null>(null);
   const [docsflowContent, setDocsflowContent] = useState<string | null>(null);
+  const [status, setStatus] = useState<'new' | 'modified' | 'published' | null>(null);
   const [history, setHistory] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingContent, setIsLoadingContent] = useState(false);
@@ -57,6 +59,7 @@ export function ReleaseNotesProvider({ children }: { children: React.ReactNode }
         const githubData = doc.github_data ?? null;
         setDocsflowContent(docsflowData);
         setGithubContent(githubData);
+        setStatus(doc.status ?? null);
         setSelectedContent(
           docsflowData !== null && docsflowData !== undefined
             ? docsflowData
@@ -88,6 +91,7 @@ export function ReleaseNotesProvider({ children }: { children: React.ReactNode }
         } else {
           setDocsflowContent(contentToSave);
         }
+        setStatus(result.doc?.status ?? 'modified');
         setSelectedContent(contentToSave);
         alert("Draft saved successfully!");
         return true;
@@ -151,6 +155,7 @@ export function ReleaseNotesProvider({ children }: { children: React.ReactNode }
       selectedContent,
       githubContent,
       docsflowContent,
+      status,
       history,
       isLoading,
       isLoadingContent,

@@ -96,8 +96,35 @@ export async function getFileContent(path: string, ref: string = BRANCH) {
     // @ts-ignore
     if (data.type !== "file" || !data.content) return null;
 
+    const ext = path.split(".").pop()?.toLowerCase() || "";
+    const binaryExtensions = new Set([
+      "jpg",
+      "jpeg",
+      "png",
+      "gif",
+      "webp",
+      "bmp",
+      "avif",
+      "mp4",
+      "webm",
+      "mov",
+      "m4v",
+      "avi",
+      "mkv",
+      "mp3",
+      "wav",
+      "ogg",
+      "m4a",
+      "flac",
+      "aac",
+    ]);
+    const isBinary = binaryExtensions.has(ext);
     // @ts-ignore
-    const buf = Buffer.from(data.content, "base64");
+    const rawBase64 = String(data.content).replace(/\n/g, "");
+    if (isBinary) {
+      return rawBase64;
+    }
+    const buf = Buffer.from(rawBase64, "base64");
     return buf.toString("utf-8");
   } catch (error: any) {
     if (error.status === 404) return null;

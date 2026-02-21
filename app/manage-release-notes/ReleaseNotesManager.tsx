@@ -11,6 +11,7 @@ export default function ReleaseNotesManager() {
     selectedContent, 
     githubContent,
     docsflowContent,
+    status,
     history, 
     isLoading, 
     isLoadingContent,
@@ -40,6 +41,7 @@ export default function ReleaseNotesManager() {
         content={selectedContent}
         githubContent={githubContent}
         docsflowContent={docsflowContent}
+        status={status}
         onSave={save}
         onPublish={publish}
         history={history}
