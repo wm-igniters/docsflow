@@ -9,11 +9,12 @@ export default function ReleaseNotesManager() {
     tree, 
     selectedPath, 
     selectedContent, 
+    githubContent,
+    docsflowContent,
     history, 
     isLoading, 
     isLoadingContent,
     setSelectedPath,
-    setContent,
     save,
     publish
   } = useReleaseNotes();
@@ -30,14 +31,15 @@ export default function ReleaseNotesManager() {
   }
 
   return (
-    <div className="flex-1 overflow-hidden">
+    <div className="flex-1 min-h-0 overflow-hidden flex">
       <EditorPage 
         title="Release Notes Manager"
         tree={tree}
         selectedPath={selectedPath}
         onItemClick={setSelectedPath}
         content={selectedContent}
-        onContentChange={setContent}
+        githubContent={githubContent}
+        docsflowContent={docsflowContent}
         onSave={save}
         onPublish={publish}
         history={history}

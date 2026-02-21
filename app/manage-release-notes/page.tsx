@@ -19,7 +19,7 @@ export default async function ManageReleaseNotes() {
 
   return (
     <ReleaseNotesProvider>
-      <div className="min-h-screen bg-[#F8FAFC] flex flex-col max-h-screen overflow-hidden">
+      <div className="h-screen bg-[#F8FAFC] flex flex-col overflow-hidden">
         <Navbar session={session}>
           <span className="text-slate-300 mx-2">/</span>
           <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 rounded-full border border-slate-200">

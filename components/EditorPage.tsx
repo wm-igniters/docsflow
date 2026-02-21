@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { 
   History, 
   ChevronRight, 
@@ -12,6 +12,11 @@ import {
   Search,
   ChevronDown
 } from "lucide-react";
+import dynamic from 'next/dynamic';
+
+const MdxEditor = dynamic(() => import('@/components/MdxEditor'), { ssr: false });
+const CodeMirrorEditor = dynamic(() => import('@/components/CodeMirrorEditor'), { ssr: false });
+
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,8 +50,9 @@ interface EditorPageProps {
   selectedPath: string | null;
   onItemClick: (path: string) => void;
   content: string;
-  onContentChange: (content: string) => void;
-  onSave: () => void;
+  githubContent: string | null;
+  docsflowContent: string | null;
+  onSave: (contentOverride?: string) => Promise<boolean>;
   onPublish: () => void;
   history: any[];
   isLoading?: boolean;
@@ -207,7 +213,8 @@ export default function EditorPage({
   selectedPath,
   onItemClick,
   content,
-  onContentChange,
+  githubContent,
+  docsflowContent,
   onSave,
   onPublish,
   history,
@@ -215,23 +222,43 @@ export default function EditorPage({
 }: EditorPageProps) {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [isDirty, setIsDirty] = useState(false);
+  const currentContentRef = useRef(content);
 
   const filteredTree = tree.filter(item => 
     item.path.toLowerCase().includes(search.toLowerCase())
   );
   
   const nestedTree = buildTree(filteredTree);
+  const baseContent = docsflowContent ?? githubContent ?? "";
 
-  const handleSave = () => {
-    onSave();
+  const markDirty = useCallback((nextValue: string) => {
+    currentContentRef.current = nextValue;
+    setIsDirty((prev) => (prev ? prev : true));
+  }, []);
+
+  const getCurrentContent = useCallback(() => {
+    return currentContentRef.current ?? content;
+  }, [content]);
+
+  const handleSave = async () => {
+    const contentToSave = getCurrentContent();
+    const success = await onSave(contentToSave);
+    if (!success) return;
+    setIsDirty(false);
     toast.success("Draft saved successfully", {
-        description: `Changes to ${selectedPath?.split('/').pop()} have been recorded.`,
+      description: `Changes to ${selectedPath?.split('/').pop()} have been recorded.`,
     });
   };
 
+  useEffect(() => {
+    currentContentRef.current = content;
+    setIsDirty(false);
+  }, [content, selectedPath]);
+
   return (
     <TooltipProvider>
-      <div className="flex h-full overflow-hidden bg-background">
+      <div className="flex flex-1 min-h-0 overflow-hidden bg-background">
         {/* Left Sidebar - DocTree */}
         <div className="w-64 border-r flex flex-col bg-muted/20 shrink-0">
           <div className="p-4 border-b space-y-4">
@@ -283,7 +310,7 @@ export default function EditorPage({
                     variant="outline" 
                     size="sm" 
                     onClick={handleSave}
-                    disabled={!selectedPath || isLoading}
+                    disabled={!selectedPath || isLoading || !isDirty}
                     className="h-8 gap-2 rounded-full px-4 text-[11px] font-bold shadow-none hover:bg-muted/50"
                   >
                     <Save size={14} /> Save Draft
@@ -336,12 +363,24 @@ export default function EditorPage({
               </div>
             ) : selectedPath ? (
               <div className="h-full bg-background rounded-xl border shadow-sm flex flex-col overflow-hidden focus-within:ring-1 focus-within:ring-primary/20 transition-all">
-                <textarea
-                  value={content}
-                  onChange={(e) => onContentChange(e.target.value)}
-                  placeholder="Start typing..."
-                  className="flex-1 p-8 outline-none resize-none bg-transparent font-mono text-[13px] leading-relaxed text-foreground/90 selection:bg-primary/10"
-                />
+                {selectedPath.endsWith('.md') || selectedPath.endsWith('.mdx') ? (
+                  <MdxEditor
+                    key={selectedPath}
+                    markdown={content}
+                    diffMarkdown={baseContent}
+                    onChange={markDirty}
+                    documentPath={selectedPath}
+                  />
+                ) : (
+                  <CodeMirrorEditor
+                    key={selectedPath}
+                    initialValue={content}
+                    baseValue={baseContent}
+                    onChange={markDirty}
+                    fileExtension={selectedPath.split('.').pop() || 'txt'}
+                    showDiff
+                  />
+                )}
               </div>
             ) : (
               <div className="h-full flex flex-col items-center justify-center gap-6 text-center">

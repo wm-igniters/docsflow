@@ -7,13 +7,15 @@ interface ReleaseNotesContextType {
   tree: any[];
   selectedPath: string | null;
   selectedContent: string;
+  githubContent: string | null;
+  docsflowContent: string | null;
   history: any[];
   isLoading: boolean;
   isLoadingContent: boolean;
   error: string | null;
   setSelectedPath: (path: string) => void;
   setContent: (content: string) => void;
-  save: () => Promise<void>;
+  save: (contentOverride?: string) => Promise<boolean>;
   publish: () => Promise<void>;
   refreshTree: () => Promise<void>;
 }
@@ -24,6 +26,8 @@ export function ReleaseNotesProvider({ children }: { children: React.ReactNode }
   const [tree, setTree] = useState<any[]>([]);
   const [selectedPath, setSelectedPathState] = useState<string | null>(null);
   const [selectedContent, setSelectedContent] = useState("");
+  const [githubContent, setGithubContent] = useState<string | null>(null);
+  const [docsflowContent, setDocsflowContent] = useState<string | null>(null);
   const [history, setHistory] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingContent, setIsLoadingContent] = useState(false);
@@ -49,7 +53,15 @@ export function ReleaseNotesProvider({ children }: { children: React.ReactNode }
     try {
       const doc = await getReleaseNoteContent(path);
       if (doc) {
-        setSelectedContent(doc.docsflow_data || doc.github_data || "");
+        const docsflowData = doc.docsflow_data ?? null;
+        const githubData = doc.github_data ?? null;
+        setDocsflowContent(docsflowData);
+        setGithubContent(githubData);
+        setSelectedContent(
+          docsflowData !== null && docsflowData !== undefined
+            ? docsflowData
+            : (githubData ?? "")
+        );
         setHistory(doc.history || []);
       }
     } catch (err) {
@@ -64,18 +76,28 @@ export function ReleaseNotesProvider({ children }: { children: React.ReactNode }
     fetchContent(path);
   };
 
-  const save = async () => {
-    if (!selectedPath) return;
+  const save = async (contentOverride?: string) => {
+    if (!selectedPath) return false;
+    const contentToSave = contentOverride ?? selectedContent;
     try {
-      const result = await updateReleaseNote(selectedPath, selectedContent);
+      const result = await updateReleaseNote(selectedPath, contentToSave);
       if (result.success) {
         setHistory(result.doc.history || []);
+        if (result.doc?.docsflow_data !== undefined) {
+          setDocsflowContent(result.doc.docsflow_data ?? null);
+        } else {
+          setDocsflowContent(contentToSave);
+        }
+        setSelectedContent(contentToSave);
         alert("Draft saved successfully!");
+        return true;
       } else {
         alert("Failed to save: " + result.error);
+        return false;
       }
     } catch (err: any) {
       alert("Error saving: " + err.message);
+      return false;
     }
   };
 
@@ -127,6 +149,8 @@ export function ReleaseNotesProvider({ children }: { children: React.ReactNode }
       tree,
       selectedPath,
       selectedContent,
+      githubContent,
+      docsflowContent,
       history,
       isLoading,
       isLoadingContent,
