@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { getReleaseNotesTree, getReleaseNoteContent, updateReleaseNote } from './actions';
+import { DB_CONFIG, GITHUB_CONFIG } from '@/lib/config.mjs';
 
 interface ReleaseNotesContextType {
   tree: any[];
@@ -117,22 +118,34 @@ export function ReleaseNotesProvider({ children }: { children: React.ReactNode }
   // Real-time connection (SSE)
   useEffect(() => {
     let es: EventSource | null = null;
+    const treeId = GITHUB_CONFIG.PATHS.RELEASE_NOTES;
 
     const connect = () => {
       console.log("SSE: Connecting to Release Notes Live Listener...");
-      es = new EventSource('/api/release-notes/watch');
+      const params = new URLSearchParams({
+        docCollection: DB_CONFIG.COLLECTIONS.RELEASE_NOTES,
+        treeId,
+      });
+      if (selectedPath) {
+        params.set('docId', selectedPath);
+      }
+      es = new EventSource(`/api/docs/watch?${params.toString()}`);
 
       es.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
           if (data.type === 'connected') return;
 
-          if (data.path === selectedPath) {
+          if (data.stream === 'doc' && data.path === selectedPath) {
              // In a real app, we'd show a notification or merge changes
              console.log("Remote update detected for current file");
           }
           
-          if (data.type === 'insert' || data.type === 'delete') {
+          if (
+            data.stream === 'tree' ||
+            data.type === 'insert' ||
+            data.type === 'delete'
+          ) {
              fetchTree();
           }
         } catch (e) {

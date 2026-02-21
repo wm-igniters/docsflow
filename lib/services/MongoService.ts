@@ -51,7 +51,7 @@ export class MongoService {
   static async watch(
     model: Model<any>, 
     onData: (data: any) => void, 
-    options: { pollingInterval?: number; filter?: any; timestampField?: string } = {}
+    options: { pollingInterval?: number; filter?: any; timestampField?: string; changeStreamMatch?: any } = {}
   ) {
     let isClosed = false;
     let pollInterval: NodeJS.Timeout | null = null;
@@ -66,7 +66,8 @@ export class MongoService {
     };
 
     try {
-      changeStream = model.watch([], { fullDocument: 'updateLookup' });
+      const pipeline = options.changeStreamMatch ? [{ $match: options.changeStreamMatch }] : [];
+      changeStream = model.watch(pipeline, { fullDocument: 'updateLookup' });
       changeStream.on('change', (change: any) => {
         if (isClosed) return;
         onData(change);
