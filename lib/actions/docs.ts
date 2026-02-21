@@ -2,12 +2,13 @@
 
 import connectDB from "@/lib/db";
 import { DB_CONFIG, GITHUB_CONFIG } from "@/lib/config.mjs";
-import DocTree, { DocTreeSchema, IDocTree } from "@/models/DocTree";
+import { DocTreeSchema, IDocTree } from "@/models/DocTree";
 import { syncDocTree as syncTreeService } from "@/lib/services/SyncService";
 import { Octokit } from "octokit";
 import { getFileContent, getFileMetadata } from "@/lib/github";
 import { auth } from "@/auth";
 import { revalidatePath } from "next/cache";
+import { MongoService } from "@/lib/services/MongoService";
 
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 const octokit = new Octokit({ auth: GITHUB_TOKEN });
@@ -17,15 +18,13 @@ const octokit = new Octokit({ auth: GITHUB_TOKEN });
  */
 export async function fetchDocTree(path: string) {
   try {
-    const conn = await connectDB(DB_CONFIG.DB_NAMES.DOCS);
-    const DocTreeModel = conn.models.DocTree || conn.model<IDocTree>('DocTree', DocTreeSchema, DB_CONFIG.COLLECTIONS.DOC_TREES);
-    
-    let treeDoc = await DocTreeModel.findById(path).lean();
+    const DocTreeModel = await MongoService.getModel<IDocTree>('DocTree', DocTreeSchema, DB_CONFIG.COLLECTIONS.DOC_TREES);
+    let treeDoc = await MongoService.findById(DocTreeModel, path);
     
     if (!treeDoc) {
-      console.log(`DocTree for ${path} not found, syncing...`);
-      await syncTreeService(conn, octokit, path);
-      treeDoc = await DocTreeModel.findById(path).lean();
+      const conn = await connectDB(DB_CONFIG.DB_NAMES.DOCS);
+      await syncTreeService(conn, octokit, path, DB_CONFIG.COLLECTIONS.RELEASE_NOTES);
+      treeDoc = await MongoService.findById(DocTreeModel, path);
     }
     
     return treeDoc ? JSON.parse(JSON.stringify(treeDoc)) : null;
@@ -41,7 +40,7 @@ export async function fetchDocTree(path: string) {
 export async function syncDocTree(path: string) {
   try {
     const conn = await connectDB(DB_CONFIG.DB_NAMES.DOCS);
-    await syncTreeService(conn, octokit, path);
+    await syncTreeService(conn, octokit, path, DB_CONFIG.COLLECTIONS.RELEASE_NOTES);
     revalidatePath(`/manage-${path.split('/').filter(Boolean).pop()}`);
     return { success: true };
   } catch (error: any) {
@@ -55,10 +54,8 @@ export async function syncDocTree(path: string) {
  */
 export async function fetchDocContent(path: string, modelName: string, collectionName: string, schema: any) {
   try {
-    const conn = await connectDB(DB_CONFIG.DB_NAMES.DOCS);
-    const Model = conn.models[modelName] || conn.model(modelName, schema, collectionName);
-    
-    let doc = await Model.findById(path).lean();
+    const Model = await MongoService.getModel(modelName, schema, collectionName);
+    let doc = await MongoService.findById(Model, path);
     
     if (!doc) {
       console.log(`Doc content for ${path} not found in DB, fetching from GitHub...`);
@@ -66,24 +63,20 @@ export async function fetchDocContent(path: string, modelName: string, collectio
       const metadata = await getFileMetadata(path);
       
       if (content) {
-        doc = await Model.findOneAndUpdate(
-          { _id: path },
-          {
-            _id: path,
-            path: path,
-            github_data: content,
-            docsflow_data: null,
-            status: 'published',
-            last_updated_source: 'github',
-            last_updated_by: metadata?.last_github_user || 'github',
-            commit_details: metadata ? {
-              last_commit_id: metadata.last_commit_id,
-              timestamp: new Date(metadata.last_update_timestamp!),
-              username: metadata.last_github_user
-            } : undefined
-          },
-          { upsert: true, new: true, lean: true }
-        );
+        doc = await MongoService.upsert(Model, path, {
+          _id: path,
+          path: path,
+          github_data: content,
+          docsflow_data: null,
+          status: 'published',
+          last_updated_source: 'github',
+          last_updated_by: metadata?.last_github_user || 'github',
+          commit_details: metadata ? {
+            last_commit_id: metadata.last_commit_id,
+            timestamp: new Date(metadata.last_update_timestamp!),
+            username: metadata.last_github_user
+          } : undefined
+        });
       }
     }
     
@@ -99,10 +92,9 @@ export async function fetchDocContent(path: string, modelName: string, collectio
  */
 export async function saveDocContent(path: string, data: any, modelName: string, collectionName: string, schema: any, computeDiff: (old: any, next: any) => any) {
   try {
-    const conn = await connectDB(DB_CONFIG.DB_NAMES.DOCS);
-    const Model = conn.models[modelName] || conn.model(modelName, schema, collectionName);
+    const Model = await MongoService.getModel(modelName, schema, collectionName);
+    const existing: any = await MongoService.findById(Model, path);
     
-    const existing = await Model.findById(path).lean();
     const session = await auth();
     const changes = computeDiff(existing?.docsflow_data, data);
     
@@ -117,19 +109,16 @@ export async function saveDocContent(path: string, data: any, modelName: string,
       changes
     };
 
-    const result = await Model.findOneAndUpdate(
-      { _id: path },
-      { 
-        $set: {
-          docsflow_data: data,
-          status: 'modified',
-          last_updated_by: session?.user?.name || 'Unknown User',
-          last_updated_source: 'docsflow'
-        },
-        $push: { history: historyEntry }
+    const result = await MongoService.upsert(Model, path, { 
+      $set: {
+        docsflow_data: data,
+        status: 'modified',
+        last_updated_by: session?.user?.name || 'Unknown User',
+        last_updated_source: 'docsflow',
+        last_update_timestamp: new Date()
       },
-      { new: true, lean: true }
-    );
+      $push: { history: historyEntry }
+    } as any);
 
     return { success: true, doc: JSON.parse(JSON.stringify(result)) };
   } catch (error: any) {

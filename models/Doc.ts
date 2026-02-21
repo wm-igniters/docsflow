@@ -1,8 +1,8 @@
 import mongoose, { Schema, Document, Model } from 'mongoose';
 import { DB_CONFIG } from '../lib/config.mjs';
 
-export interface IReleaseNote extends Document<string> {
-  _id: string; // The path of the file in GitHub, e.g., "docs/release-notes/release-version-1/version-1-0-x/1.0.0.mdx"
+export interface IDoc extends Document<string> {
+  _id: string; // The path of the file in GitHub
   path: string;
   commit_details?: {
     last_commit_id: string;
@@ -19,7 +19,7 @@ export interface IReleaseNote extends Document<string> {
   history: any[];
 }
 
-export const ReleaseNoteSchema: Schema = new Schema(
+export const DocSchema: Schema = new Schema(
   {
     _id: {
       type: String,
@@ -70,21 +70,20 @@ export const ReleaseNoteSchema: Schema = new Schema(
   },
   {
     _id: false,
-    // Note: timestamps (createdAt, updatedAt) are explicitly excluded as redundant per user request
     timestamps: false,
   }
 );
 
-ReleaseNoteSchema.set('id', false);
-ReleaseNoteSchema.set('toJSON', { virtuals: false });
-ReleaseNoteSchema.set('toObject', { virtuals: false });
+DocSchema.set('id', false);
+DocSchema.set('toJSON', { virtuals: false });
+DocSchema.set('toObject', { virtuals: false });
 
-const ReleaseNote: Model<IReleaseNote> =
-  mongoose.models.ReleaseNote ||
-  mongoose.model<IReleaseNote>(
-    "ReleaseNote",
-    ReleaseNoteSchema,
-    DB_CONFIG.COLLECTIONS.RELEASE_NOTES,
+const Doc: Model<IDoc> =
+  mongoose.models.Doc ||
+  mongoose.model<IDoc>(
+    "Doc",
+    DocSchema,
+    DB_CONFIG.COLLECTIONS.RELEASE_NOTES, // Defaulting to release notes for now, but usually overridden in getModel or specified at call time
   );
 
-export default ReleaseNote;
+export default Doc;

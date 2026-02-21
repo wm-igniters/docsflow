@@ -24,8 +24,9 @@ export function isEqual(a: any, b: any): boolean {
 export async function syncDocTree(
   connection: Connection,
   octokit: Octokit,
-  path: string
+  path: string,
+  collectionName?: string
 ) {
   // @ts-ignore
-  return performTreeSync(connection, octokit, path, GITHUB_CONFIG);
+  return performTreeSync(connection, octokit, path, GITHUB_CONFIG, collectionName);
 }

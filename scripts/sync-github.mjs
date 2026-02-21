@@ -34,8 +34,12 @@ export default async function runIntegritySync() {
 
     // 2. Sync Doc Trees (Generic tree snapshot for all watch paths)
     console.log('--- Doc Tree Snapshot Sync ---');
-    for (const watchPath of Object.values(PATHS)) {
-      await performTreeSync(connection, octokit, watchPath, GITHUB_CONFIG);
+    for (const [key, watchPath] of Object.entries(PATHS)) {
+      // Tech Stack has its own dedicated sync. For others, infer collection name if possible
+      let collectionName = null;
+      if (key === 'RELEASE_NOTES') collectionName = COLLECTIONS.RELEASE_NOTES;
+      
+      await performTreeSync(connection, octokit, watchPath, GITHUB_CONFIG, collectionName);
     }
 
     // 3. Sync Metadata

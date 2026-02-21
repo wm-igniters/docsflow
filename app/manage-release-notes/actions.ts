@@ -1,7 +1,7 @@
 "use server";
 
 import { fetchDocTree, syncDocTree, fetchDocContent, saveDocContent } from "@/lib/actions/docs";
-import { ReleaseNoteSchema } from "@/models/ReleaseNote";
+import { DocSchema } from "@/models/Doc";
 import { GITHUB_CONFIG, DB_CONFIG } from "@/lib/config.mjs";
 
 const RELEASE_NOTES_PATH = GITHUB_CONFIG.PATHS.RELEASE_NOTES;
@@ -17,9 +17,9 @@ export async function syncReleaseNotes() {
 export async function getReleaseNoteContent(path: string) {
   return fetchDocContent(
     path, 
-    'ReleaseNote', 
+    'Doc', 
     DB_CONFIG.COLLECTIONS.RELEASE_NOTES, 
-    ReleaseNoteSchema
+    DocSchema
   );
 }
 
@@ -27,9 +27,9 @@ export async function updateReleaseNote(path: string, content: string) {
   return saveDocContent(
     path, 
     content, 
-    'ReleaseNote', 
+    'Doc', 
     DB_CONFIG.COLLECTIONS.RELEASE_NOTES, 
-    ReleaseNoteSchema,
+    DocSchema,
     computeSimpleDiff
   );
 }
