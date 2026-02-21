@@ -216,6 +216,40 @@
   text-transform: uppercase;
 }
 
+/* MDX editor dialog file input (image upload) */
+.mdx-editor input[type="file"] {
+  font-size: 0.875rem;
+  color: var(--mdx-prose-text);
+}
+
+.mdx-editor input[type="file"]::file-selector-button {
+  @apply inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all;
+  @apply h-9 px-4 py-2 has-[>svg]:px-3;
+  @apply border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground;
+  @apply focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px];
+  @apply disabled:pointer-events-none disabled:opacity-50;
+  margin-right: 0.75rem;
+  cursor: pointer;
+}
+
+.mdx-editor input[type="file"]::file-selector-button:hover {
+  @apply hover:bg-accent hover:text-accent-foreground;
+}
+
+.mdx-editor input[type="file"]::-webkit-file-upload-button {
+  @apply inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all;
+  @apply h-9 px-4 py-2 has-[>svg]:px-3;
+  @apply border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground;
+  @apply focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px];
+  @apply disabled:pointer-events-none disabled:opacity-50;
+  margin-right: 0.75rem;
+  cursor: pointer;
+}
+
+.mdx-editor input[type="file"]::-webkit-file-upload-button:hover {
+  @apply hover:bg-accent hover:text-accent-foreground;
+}
+
 .mdx-editor .mdx-prose a {
   color: var(--mdx-prose-link);
   text-decoration: underline;
