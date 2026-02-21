@@ -4,6 +4,7 @@ import { uploadObject } from "../../../lib/s3";
 import connectDB from "../../../lib/db";
 import { DB_CONFIG } from "../../../lib/config.mjs";
 import { AssetSchema } from "../../../models/Asset";
+import { createHash } from "crypto";
 
 export async function POST(request: Request) {
   try {
@@ -30,6 +31,17 @@ export async function POST(request: Request) {
     const originalFileName = file.name;
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
+    const hash = createHash("sha256").update(buffer).digest("hex");
+
+    const conn = await connectDB(DB_CONFIG.DB_NAMES.DOCS);
+    const Asset =
+      conn.models.Asset ||
+      conn.model("Asset", AssetSchema, DB_CONFIG.COLLECTIONS.ASSETS);
+
+    const existing = await Asset.findOne({ hash }).lean();
+    if (existing?.url) {
+      return NextResponse.json({ url: existing.url });
+    }
 
     // id in S3
     const id = `public_assets/${Date.now()}_${originalFileName.replace(
@@ -45,17 +57,12 @@ export async function POST(request: Request) {
       overwritePush: true,
     });
 
-    // Save to DB
-    const conn = await connectDB(DB_CONFIG.DB_NAMES.DOCS);
-    const Asset =
-      conn.models.Asset ||
-      conn.model("Asset", AssetSchema, DB_CONFIG.COLLECTIONS.ASSETS);
-
     const asset = new Asset({
       originalFileName,
       usedInPath,
       objectId: id,
       url,
+      hash,
     });
     
     await asset.save();
