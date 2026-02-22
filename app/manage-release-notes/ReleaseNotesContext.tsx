@@ -119,6 +119,10 @@ export function ReleaseNotesProvider({ children }: { children: React.ReactNode }
   useEffect(() => {
     let es: EventSource | null = null;
     const treeId = GITHUB_CONFIG.PATHS.RELEASE_NOTES;
+    const isDirty =
+      selectedContent !== "" &&
+      docsflowContent !== null &&
+      selectedContent !== docsflowContent;
 
     const connect = () => {
       console.log("SSE: Connecting to Release Notes Live Listener...");
@@ -139,6 +143,9 @@ export function ReleaseNotesProvider({ children }: { children: React.ReactNode }
           if (data.stream === 'doc' && data.path === selectedPath) {
              // In a real app, we'd show a notification or merge changes
              console.log("Remote update detected for current file");
+             if (!isDirty && selectedPath) {
+               fetchContent(selectedPath);
+             }
           }
           
           if (
@@ -159,7 +166,7 @@ export function ReleaseNotesProvider({ children }: { children: React.ReactNode }
     return () => {
       if (es) es.close();
     };
-  }, [fetchTree, selectedPath]);
+  }, [fetchTree, fetchContent, selectedPath, selectedContent, docsflowContent]);
 
   return (
     <ReleaseNotesContext.Provider value={{
