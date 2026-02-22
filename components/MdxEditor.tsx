@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useMemo } from "react";
+import React, { useCallback, useMemo, useImperativeHandle, useRef } from "react";
 import {
   MDXEditor,
   headingsPlugin,
@@ -93,6 +93,8 @@ export const MdxEditor = React.forwardRef<MDXEditorMethods, MdxEditorProps>(
   },
   ref
 ) {
+  const editorRef = useRef<MDXEditorMethods | null>(null);
+  useImperativeHandle(ref, () => editorRef.current as MDXEditorMethods);
   const { resolvedTheme } = useTheme();
   const themeName = resolvedTheme === "dark" ? "dark" : "light";
 
@@ -167,7 +169,14 @@ export const MdxEditor = React.forwardRef<MDXEditorMethods, MdxEditorProps>(
               <CreateLink />
               <InsertImage />
               <InsertTable />
-              <InsertThematicBreak />
+              <span
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  editorRef.current?.focus();
+                }}
+              >
+                <InsertThematicBreak />
+              </span>
               <div className="w-px h-6 bg-border mx-1" />
               <InsertCodeBlock />
               <InsertAdmonition />
@@ -195,7 +204,7 @@ export const MdxEditor = React.forwardRef<MDXEditorMethods, MdxEditorProps>(
     <div className="w-full h-full border border-border rounded-md bg-background overflow-hidden text-foreground max-h-screen overflow-y-auto">
       <div className={`${themeName}-theme`} data-theme={themeName}>
         <MDXEditor
-          ref={ref}
+          ref={editorRef}
           markdown={markdown}
           onChange={(nextMarkdown) => onChange?.(nextMarkdown)}
           className="mdx-editor"

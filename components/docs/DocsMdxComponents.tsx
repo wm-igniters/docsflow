@@ -20,10 +20,6 @@ import {
   X as CloseIcon,
 } from "lucide-react";
 
-const TAB_COMPONENT_SOURCE = "@/components/docs/LayoutComponents/Tabs";
-const VIDEO_CARD_SOURCE = "@/components/docs/VideoCard/VideoCard";
-const ACADEMY_CARD_SOURCE = "@/components/docs/AcademyCard/AcademyCard";
-
 type MdxJsxAttribute = {
   type: "mdxJsxAttribute";
   name: string;
@@ -898,7 +894,6 @@ export const docsComponentDescriptors: JsxComponentDescriptor[] = [
   {
     name: "TabsWrapper",
     kind: "flow",
-    source: TAB_COMPONENT_SOURCE,
     props: [],
     hasChildren: true,
     Editor: TabsWrapperEditor,
@@ -906,7 +901,6 @@ export const docsComponentDescriptors: JsxComponentDescriptor[] = [
   {
     name: "TabItem",
     kind: "flow",
-    source: TAB_COMPONENT_SOURCE,
     props: [{ name: "name", type: "string", required: true }],
     hasChildren: true,
     Editor: GenericJsxEditor,
@@ -914,7 +908,6 @@ export const docsComponentDescriptors: JsxComponentDescriptor[] = [
   {
     name: "VideoCard",
     kind: "flow",
-    source: VIDEO_CARD_SOURCE,
     defaultExport: true,
     props: [
       { name: "videoUrl", type: "string", required: true },
@@ -930,7 +923,6 @@ export const docsComponentDescriptors: JsxComponentDescriptor[] = [
   {
     name: "AcademyCard",
     kind: "flow",
-    source: ACADEMY_CARD_SOURCE,
     defaultExport: true,
     props: [
       { name: "title", type: "string", required: true },
