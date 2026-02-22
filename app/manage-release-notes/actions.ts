@@ -3,6 +3,7 @@
 import { fetchDocTree, syncDocTree, fetchDocContent, saveDocContent } from "@/lib/actions/docs";
 import { DocSchema } from "@/models/Doc";
 import { GITHUB_CONFIG, DB_CONFIG } from "@/lib/config.mjs";
+import { createLinePatch } from "@/lib/utils/diff3";
 
 const RELEASE_NOTES_PATH = GITHUB_CONFIG.PATHS.RELEASE_NOTES;
 
@@ -38,11 +39,7 @@ export async function updateReleaseNote(path: string, content: string) {
  * Simple diff for markdown/text content
  */
 function computeSimpleDiff(oldContent: any, newContent: any) {
-  if (oldContent === newContent) return null;
-  return {
-    content: {
-      from: typeof oldContent === 'string' ? oldContent.slice(0, 100) + '...' : 'none',
-      to: typeof newContent === 'string' ? newContent.slice(0, 100) + '...' : 'none'
-    }
-  };
+  const oldText = typeof oldContent === 'string' ? oldContent : (oldContent == null ? '' : JSON.stringify(oldContent));
+  const newText = typeof newContent === 'string' ? newContent : (newContent == null ? '' : JSON.stringify(newContent));
+  return createLinePatch(oldText, newText);
 }

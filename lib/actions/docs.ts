@@ -96,14 +96,18 @@ export async function saveDocContent(path: string, data: any, modelName: string,
     const existing: any = await MongoService.findById(Model, path);
     
     const session = await auth();
-    const changes = computeDiff(existing?.docsflow_data, data);
+    const baseData =
+      existing?.docsflow_data == null && existing?.github_data != null
+        ? existing.github_data
+        : existing?.docsflow_data;
+    const changes = computeDiff(baseData, data);
     
     const historyEntry = {
       timestamp: new Date(),
       updated_by: 'docsflow',
       user: {
+        id: session?.user?.email || undefined,
         name: session?.user?.name || 'Unknown User',
-        email: session?.user?.email || undefined,
         image: session?.user?.image || undefined,
       },
       changes

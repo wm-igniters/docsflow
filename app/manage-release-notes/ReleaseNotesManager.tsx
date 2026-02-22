@@ -15,9 +15,11 @@ export default function ReleaseNotesManager() {
     history, 
     isLoading, 
     isLoadingContent,
+    incomingUpdate,
     setSelectedPath,
     save,
-    publish
+    publish,
+    resolveIncomingUpdate
   } = useReleaseNotes();
 
   if (isLoading && tree.length === 0) {
@@ -46,6 +48,8 @@ export default function ReleaseNotesManager() {
         onPublish={publish}
         history={history}
         isLoading={isLoadingContent}
+        incomingUpdate={incomingUpdate}
+        resolveIncomingUpdate={resolveIncomingUpdate}
       />
     </div>
   );

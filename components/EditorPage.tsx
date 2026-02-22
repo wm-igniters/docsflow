@@ -58,6 +58,8 @@ interface EditorPageProps {
   onPublish: () => void;
   history: any[];
   isLoading?: boolean;
+  incomingUpdate?: string | null;
+  resolveIncomingUpdate?: (newDocsflowData: string, newSelectedContent: string) => void;
 }
 
 interface TreeNode {
@@ -221,12 +223,19 @@ export default function EditorPage({
   onSave,
   onPublish,
   history,
-  isLoading = false
+  isLoading = false,
+  incomingUpdate = null,
+  resolveIncomingUpdate
 }: EditorPageProps) {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [isDirty, setIsDirty] = useState(false);
   const currentContentRef = useRef(content);
+  const mdxEditorRef = useRef<any>(null);
+
+  const [isResolveModalOpen, setIsResolveModalOpen] = useState(false);
+  const [conflictResolvedContent, setConflictResolvedContent] = useState("");
+  const [conflictBaselineContent, setConflictBaselineContent] = useState("");
 
   const filteredTree = tree.filter(item => 
     item.path.toLowerCase().includes(search.toLowerCase())
@@ -301,6 +310,42 @@ export default function EditorPage({
     });
   };
 
+  const handleMergeIncoming = () => {
+    if (!incomingUpdate) return;
+    
+    import('@/lib/utils/diff3').then(({ performMerge }) => {
+       const base = docsflowContent ?? "";
+       const { isClean, mergedText } = performMerge(getCurrentContent(), base, incomingUpdate);
+       
+       if (isClean) {
+          if (mdxEditorRef.current && typeof mdxEditorRef.current.setMarkdown === 'function') {
+            mdxEditorRef.current.setMarkdown(mergedText);
+          }
+          currentContentRef.current = mergedText;
+          setIsDirty(true);
+          resolveIncomingUpdate?.(incomingUpdate, mergedText);
+          toast.success("Changes merged cleanly!");
+       } else {
+          setConflictBaselineContent(mergedText);
+          setConflictResolvedContent(getCurrentContent());
+          setIsResolveModalOpen(true);
+       }
+    });
+  };
+
+  const handleFinishResolve = () => {
+    if (resolveIncomingUpdate && incomingUpdate) {
+      if (mdxEditorRef.current && typeof mdxEditorRef.current.setMarkdown === 'function') {
+        mdxEditorRef.current.setMarkdown(conflictResolvedContent);
+      }
+      currentContentRef.current = conflictResolvedContent;
+      setIsDirty(true);
+      resolveIncomingUpdate(incomingUpdate, conflictResolvedContent);
+    }
+    setIsResolveModalOpen(false);
+    toast.success("Conflicts resolved!");
+  };
+
   useEffect(() => {
     currentContentRef.current = content;
     setIsDirty(false);
@@ -356,17 +401,25 @@ export default function EditorPage({
             <div className="flex items-center gap-2 shrink-0">
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={handleSave}
-                    disabled={!selectedPath || isLoading || !isDirty}
-                    className="h-8 gap-2 rounded-full px-4 text-[11px] font-bold shadow-none hover:bg-muted/50"
-                  >
-                    <Save size={14} /> Save Draft
-                  </Button>
+                  <div className="inline-block">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={handleSave}
+                      disabled={!selectedPath || isLoading || !isDirty || !!incomingUpdate}
+                      className="h-8 gap-2 rounded-full px-4 text-[11px] font-bold shadow-none hover:bg-muted/50"
+                    >
+                      <Save size={14} /> Save Draft
+                    </Button>
+                  </div>
                 </TooltipTrigger>
-                <TooltipContent>Save local changes</TooltipContent>
+                <TooltipContent>
+                  {!selectedPath && 'No active document'}
+                  {isLoading && 'Loading content...'}
+                  {!!incomingUpdate && 'Please merge remote changes before saving'}
+                  {selectedPath && !isLoading && !incomingUpdate && !isDirty && 'No unsaved changes'}
+                  {selectedPath && !isLoading && !incomingUpdate && isDirty && 'Save local changes'}
+                </TooltipContent>
               </Tooltip>
 
               <Tooltip>
@@ -406,6 +459,21 @@ export default function EditorPage({
             </div>
           </header>
 
+          {/* Incoming Update Banner */}
+          {incomingUpdate && !isResolveModalOpen && (
+            <div className="bg-blue-500/10 border-b border-blue-500/20 p-3 flex items-center justify-between text-blue-600 dark:text-blue-400 shadow-sm animate-in slide-in-from-top-2">
+              <div className="flex items-center gap-2">
+                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-500 text-[10px] font-bold text-white">i</span>
+                <p className="text-xs font-medium">Remote changes detected. Merge them to continue saving.</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button size="sm" className="h-7 text-[11px] px-3 font-bold bg-blue-500 hover:bg-blue-600 text-white" onClick={handleMergeIncoming}>
+                  Merge Changes
+                </Button>
+              </div>
+            </div>
+          )}
+
           {/* Editor Area */}
           <main className="flex-1 overflow-hidden p-6 bg-muted/10">
             {isLoading ? (
@@ -417,6 +485,7 @@ export default function EditorPage({
               <div className="h-full bg-background rounded-xl border shadow-sm flex flex-col overflow-hidden focus-within:ring-1 focus-within:ring-primary/20 transition-all">
                 {selectedPath.endsWith('.md') || selectedPath.endsWith('.mdx') ? (
                   <MdxEditor
+                    ref={mdxEditorRef}
                     key={selectedPath}
                     markdown={content}
                     diffMarkdown={baseContent}
@@ -545,6 +614,45 @@ export default function EditorPage({
                     Close History
                 </Button>
               </div>
+            </SheetContent>
+          </Sheet>
+
+          {/* Conflict Resolve Modal */}
+          {/* We use a full-screen sheet to allow them to resolve conflicts properly */}
+          <Sheet open={isResolveModalOpen} onOpenChange={setIsResolveModalOpen}>
+            <SheetContent side="bottom" className="h-[95vh] p-0 flex flex-col rounded-t-xl overflow-hidden">
+               <SheetHeader className="flex flex-row items-center justify-between p-4 border-b bg-background shrink-0 space-y-0">
+                  <div className="space-y-1">
+                    <SheetTitle className="text-lg font-bold flex items-center gap-2 m-0 text-left">
+                      <span className="h-2 w-2 rounded-full bg-yellow-500 animate-pulse" /> Resolve Merge Conflicts
+                    </SheetTitle>
+                    <p className="text-xs text-muted-foreground font-medium text-left">
+                      The "Diff View" shows your changes against the server's conflicting updates. Please edit to merge perfectly.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Button variant="outline" size="sm" onClick={() => setIsResolveModalOpen(false)}>
+                       Cancel
+                    </Button>
+                    <Button size="sm" onClick={handleFinishResolve}>
+                       Apply Resolved Conflicts Locally
+                    </Button>
+                  </div>
+               </SheetHeader>
+               
+               <div className="flex-1 min-h-0 bg-muted/30 p-4">
+                  <div className="h-full bg-background rounded-xl border shadow-sm flex flex-col overflow-hidden">
+                     {isResolveModalOpen && (
+                       <MdxEditor
+                         markdown={conflictResolvedContent}
+                         diffMarkdown={conflictBaselineContent}
+                         onChange={setConflictResolvedContent}
+                         defaultViewMode="diff"
+                         documentPath={selectedPath!}
+                       />
+                     )}
+                  </div>
+               </div>
             </SheetContent>
           </Sheet>
         </div>

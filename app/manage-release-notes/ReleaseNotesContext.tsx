@@ -1,7 +1,8 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { getReleaseNotesTree, getReleaseNoteContent, updateReleaseNote } from './actions';
+import { performMerge } from '@/lib/utils/diff3';
 import { DB_CONFIG, GITHUB_CONFIG } from '@/lib/config.mjs';
 
 interface ReleaseNotesContextType {
@@ -15,11 +16,13 @@ interface ReleaseNotesContextType {
   isLoading: boolean;
   isLoadingContent: boolean;
   error: string | null;
+  incomingUpdate: string | null;
   setSelectedPath: (path: string) => void;
   setContent: (content: string) => void;
   save: (contentOverride?: string) => Promise<boolean>;
   publish: () => Promise<void>;
   refreshTree: () => Promise<void>;
+  resolveIncomingUpdate: (newDocsflowData: string, newSelectedContent: string) => void;
 }
 
 const ReleaseNotesContext = createContext<ReleaseNotesContextType | undefined>(undefined);
@@ -35,6 +38,7 @@ export function ReleaseNotesProvider({ children }: { children: React.ReactNode }
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingContent, setIsLoadingContent] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [incomingUpdate, setIncomingUpdate] = useState<string | null>(null);
 
   const fetchTree = useCallback(async () => {
     setIsLoading(true);
@@ -53,6 +57,7 @@ export function ReleaseNotesProvider({ children }: { children: React.ReactNode }
 
   const fetchContent = useCallback(async (path: string) => {
     setIsLoadingContent(true);
+    setIncomingUpdate(null);
     try {
       const doc = await getReleaseNoteContent(path);
       if (doc) {
@@ -76,12 +81,18 @@ export function ReleaseNotesProvider({ children }: { children: React.ReactNode }
   }, []);
 
   const setSelectedPath = (path: string) => {
-    setSelectedPathState(path);
-    fetchContent(path);
+    if (path !== selectedPath) {
+      setSelectedPathState(path);
+      fetchContent(path);
+    }
   };
 
   const save = async (contentOverride?: string) => {
     if (!selectedPath) return false;
+    if (incomingUpdate !== null) {
+      alert("Please merge upstream changes before saving.");
+      return false;
+    }
     const contentToSave = contentOverride ?? selectedContent;
     try {
       const result = await updateReleaseNote(selectedPath, contentToSave);
@@ -108,6 +119,12 @@ export function ReleaseNotesProvider({ children }: { children: React.ReactNode }
 
   const publish = async () => {
     alert("Publish functionality will be added later.");
+  };
+
+  const resolveIncomingUpdate = (newDocsflowData: string, newSelectedContent: string) => {
+    setDocsflowContent(newDocsflowData);
+    setSelectedContent(newSelectedContent);
+    setIncomingUpdate(null);
   };
 
   // Initial Fetch
@@ -141,11 +158,25 @@ export function ReleaseNotesProvider({ children }: { children: React.ReactNode }
           if (data.type === 'connected') return;
 
           if (data.stream === 'doc' && data.path === selectedPath) {
-             // In a real app, we'd show a notification or merge changes
              console.log("Remote update detected for current file");
-             if (!isDirty && selectedPath) {
-               fetchContent(selectedPath);
-             }
+             if (!selectedPath) return;
+             
+             // Fetch the latest document from the DB safely without clobbering state immediately
+             getReleaseNoteContent(selectedPath).then((doc) => {
+               if (!doc) return;
+               
+               const remoteDocsflowData = doc.docsflow_data ?? "";
+               const baseDocsflowData = docsflowContent ?? "";
+               const myCurrentData = selectedContent;
+               
+               // If nothing actually changed (maybe I triggered the update), ignore
+               if (remoteDocsflowData === baseDocsflowData) return;
+               
+               console.log("Remote update detected, setting incomingUpdate");
+               setIncomingUpdate(remoteDocsflowData);
+             }).catch(err => {
+               console.error("Failed to fetch doc update for live sync", err);
+             });
           }
           
           if (
@@ -180,11 +211,13 @@ export function ReleaseNotesProvider({ children }: { children: React.ReactNode }
       isLoading,
       isLoadingContent,
       error,
+      incomingUpdate,
       setSelectedPath,
       setContent: setSelectedContent,
       save,
       publish,
-      refreshTree: fetchTree
+      refreshTree: fetchTree,
+      resolveIncomingUpdate
     }}>
       {children}
     </ReleaseNotesContext.Provider>
