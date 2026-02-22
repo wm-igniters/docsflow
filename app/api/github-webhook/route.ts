@@ -7,6 +7,7 @@ import { TechStackSchema as TS_Schema, ITechStack } from "@/models/TechStack";
 import { SyncMetaSchema, ISyncMeta } from "@/models/SyncMeta";
 import { GITHUB_CONFIG, DB_CONFIG } from "@/lib/config.mjs";
 import { syncDocTree, isEqual } from "@/lib/services/SyncService";
+import { syncPublishBranches } from "@/lib/services/PublishBranchSync.mjs";
 
 const { GITHUB_TOKEN } = process.env;
 const { OWNER, REPO, BRANCH, PATHS } = GITHUB_CONFIG;
@@ -113,7 +114,7 @@ export async function POST(req: NextRequest) {
 
     console.log(`GitHub Webhook: ${event} on ${payload.ref}`);
 
-    if (event === "push" && payload.ref === `refs/heads/${BRANCH}`) {
+    if (event === "push") {
       const conn = await connectDB(DB_NAMES.DOCS);
 
       const changedFiles = new Set<string>();
@@ -125,76 +126,80 @@ export async function POST(req: NextRequest) {
         (commit.removed || []).forEach((f: string) => removedFiles.add(f));
       });
 
-      // 1. Check WATCH_PATHS for Doc Tree Sync
-      for (const watchPath of Object.values(PATHS)) {
-        const hasChange =
-          Array.from(changedFiles).some((f) => f.startsWith(watchPath)) ||
-          Array.from(removedFiles).some((f) => f.startsWith(watchPath));
+      if (payload.ref === `refs/heads/${BRANCH}`) {
+        // 1. Check WATCH_PATHS for Doc Tree Sync
+        for (const watchPath of Object.values(PATHS)) {
+          const hasChange =
+            Array.from(changedFiles).some((f) => f.startsWith(watchPath)) ||
+            Array.from(removedFiles).some((f) => f.startsWith(watchPath));
 
-        if (hasChange) {
-          console.log(`Triggering Doc Tree Sync for ${watchPath}`);
-          await syncDocTree(conn, octokit, watchPath);
-        }
-      }
-
-      // 2. Original Tech Stack Logic (Preserved)
-      const tsModified = Array.from(changedFiles).filter(
-        (f) => f.startsWith(PATHS.TECH_STACK) && f.endsWith(".json"),
-      );
-      const tsRemoved = Array.from(removedFiles).filter(
-        (f) => f.startsWith(PATHS.TECH_STACK) && f.endsWith(".json"),
-      );
-
-      if (tsModified.length > 0 || tsRemoved.length > 0) {
-        const TechStackModel =
-          (conn.models.TechStack as any) ||
-          conn.model<ITechStack>(
-            "TechStack",
-            TS_Schema,
-            COLLECTIONS.TECH_STACK,
-          );
-
-        // Removals
-        for (const filePath of tsRemoved) {
-          const fileName = filePath.split("/").pop();
-          const doc = await TechStackModel.findById(fileName);
-          if (doc) {
-            const hasChanges = !isEqual(doc.data, doc.docs_flow_data);
-            if (hasChanges) {
-              console.log(
-                `Skipping deletion of tech-stack ${fileName} (Found local changes)`,
-              );
-              await TechStackModel.updateOne(
-                { _id: fileName },
-                { $set: { status: "draft", last_updated_by: "github" } },
-              );
-            } else {
-              await TechStackModel.deleteOne({ _id: fileName });
-              console.log(`Deleted tech-stack ${fileName}`);
-            }
+          if (hasChange) {
+            console.log(`Triggering Doc Tree Sync for ${watchPath}`);
+            await syncDocTree(conn, octokit, watchPath);
           }
         }
 
-        // Modifications
-        for (const filePath of tsModified) {
-          const fileName = filePath.split("/").pop();
-          if (fileName) {
-            const existingDoc = await TechStackModel.findById(fileName);
-            const metadata = await getFileMetadata(filePath, BRANCH);
-            let isNewer = true;
-            if (metadata) {
-              isNewer =
-                !existingDoc ||
-                existingDoc.last_commit_id !== metadata.last_commit_id ||
-                new Date(metadata.last_update_timestamp!) >
-                  new Date(existingDoc.last_update_timestamp);
+        // 2. Original Tech Stack Logic (Preserved)
+        const tsModified = Array.from(changedFiles).filter(
+          (f) => f.startsWith(PATHS.TECH_STACK) && f.endsWith(".json"),
+        );
+        const tsRemoved = Array.from(removedFiles).filter(
+          (f) => f.startsWith(PATHS.TECH_STACK) && f.endsWith(".json"),
+        );
+
+        if (tsModified.length > 0 || tsRemoved.length > 0) {
+          const TechStackModel =
+            (conn.models.TechStack as any) ||
+            conn.model<ITechStack>(
+              "TechStack",
+              TS_Schema,
+              COLLECTIONS.TECH_STACK,
+            );
+
+          // Removals
+          for (const filePath of tsRemoved) {
+            const fileName = filePath.split("/").pop();
+            const doc = await TechStackModel.findById(fileName);
+            if (doc) {
+              const hasChanges = !isEqual(doc.data, doc.docs_flow_data);
+              if (hasChanges) {
+                console.log(
+                  `Skipping deletion of tech-stack ${fileName} (Found local changes)`,
+                );
+                await TechStackModel.updateOne(
+                  { _id: fileName },
+                  { $set: { status: "draft", last_updated_by: "github" } },
+                );
+              } else {
+                await TechStackModel.deleteOne({ _id: fileName });
+                console.log(`Deleted tech-stack ${fileName}`);
+              }
             }
-            if (isNewer) {
-              await syncTechStackFile(TechStackModel, filePath, fileName);
+          }
+
+          // Modifications
+          for (const filePath of tsModified) {
+            const fileName = filePath.split("/").pop();
+            if (fileName) {
+              const existingDoc = await TechStackModel.findById(fileName);
+              const metadata = await getFileMetadata(filePath, BRANCH);
+              let isNewer = true;
+              if (metadata) {
+                isNewer =
+                  !existingDoc ||
+                  existingDoc.last_commit_id !== metadata.last_commit_id ||
+                  new Date(metadata.last_update_timestamp!) >
+                    new Date(existingDoc.last_update_timestamp);
+              }
+              if (isNewer) {
+                await syncTechStackFile(TechStackModel, filePath, fileName);
+              }
             }
           }
         }
       }
+
+      await syncPublishBranches(conn, octokit, GITHUB_CONFIG, DB_CONFIG);
     }
 
     return NextResponse.json({ message: "Processed" });

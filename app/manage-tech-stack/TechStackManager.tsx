@@ -1058,15 +1058,15 @@ export default function TechStackManager() {
             // Reload the latest data from the server to update the UI
             await loadLatestSelectedData();
         } else if (res.error === "CONFLICT_ERROR") {
-            alert(res.message);
+            setToast({ message: res.message || "Conflict detected while saving.", type: 'error' });
             // Force reload to get latest state
             await loadLatestSelectedData();
         } else {
-            alert("Failed to save: " + res.error);
+            setToast({ message: "Failed to save: " + res.error, type: 'error' });
         }
     } catch (err) {
         console.error("Save error:", err);
-        alert("An error occurred while saving.");
+        setToast({ message: "An error occurred while saving.", type: 'error' });
     }
   };
 
@@ -1101,13 +1101,11 @@ export default function TechStackManager() {
             await loadLatestSelectedData();
         } else {
             console.error("Publish failure details:", result.details);
-            alert(`Failed to publish: ${result.error}${result.details ? '\n\nDetails: ' + JSON.stringify(result.details) : ''}`);
-            setToast({ message: "Publish failed", type: 'error' });
+            setToast({ message: `Failed to publish: ${result.error}`, type: 'error' });
         }
     } catch (err) {
         console.error("Publish error:", err);
-        alert("An error occurred while publishing to GitHub.");
-        setToast({ message: "Publish error", type: 'error' });
+        setToast({ message: "An error occurred while publishing to GitHub.", type: 'error' });
     } finally {
         setIsPublishing(false);
         setTimeout(() => setToast(null), 10000); // 10s for PR link visibility
@@ -1755,4 +1753,3 @@ export default function TechStackManager() {
     </div>
   );
 }
-

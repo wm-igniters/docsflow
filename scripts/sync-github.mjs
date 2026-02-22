@@ -7,6 +7,7 @@ import { GITHUB_CONFIG, DB_CONFIG } from '../lib/config.mjs';
 // Sync Modules
 import { syncTechStack } from './sync/tech-stack.mjs';
 import { performTreeSync } from '../lib/services/SyncUtils.mjs';
+import { syncPublishBranches } from '../lib/services/PublishBranchSync.mjs';
 
 const { OWNER, REPO, BRANCH, PATHS } = GITHUB_CONFIG;
 const { DB_NAMES, COLLECTIONS } = DB_CONFIG;
@@ -79,6 +80,9 @@ export default async function runIntegritySync() {
       },
       { upsert: true }
     );
+
+    // 4. Sync DocsFlow publish branches
+    await syncPublishBranches(connection, octokit, GITHUB_CONFIG, DB_CONFIG);
 
     console.log('✅ Global Sync Complete.');
   } catch (error) {

@@ -54,10 +54,13 @@ interface EditorPageProps {
   githubContent: string | null;
   docsflowContent: string | null;
   status: 'new' | 'modified' | 'published' | null;
+  lastEditedBy?: string | null;
+  lastEditedAt?: Date | string | null;
   onSave: (contentOverride?: string) => Promise<boolean>;
   onPublish: () => void;
   history: any[];
   isLoading?: boolean;
+  isPublishing?: boolean;
   incomingUpdate?: string | null;
   resolveIncomingUpdate?: (newDocsflowData: string, newSelectedContent: string) => void;
 }
@@ -220,10 +223,13 @@ export default function EditorPage({
   githubContent,
   docsflowContent,
   status,
+  lastEditedBy = null,
+  lastEditedAt = null,
   onSave,
   onPublish,
   history,
   isLoading = false,
+  isPublishing = false,
   incomingUpdate = null,
   resolveIncomingUpdate
 }: EditorPageProps) {
@@ -231,6 +237,7 @@ export default function EditorPage({
   const [search, setSearch] = useState("");
   const [isDirty, setIsDirty] = useState(false);
   const currentContentRef = useRef(content);
+  const lastSavedContentRef = useRef(docsflowContent ?? githubContent ?? content);
   const mdxEditorRef = useRef<any>(null);
 
   const [isResolveModalOpen, setIsResolveModalOpen] = useState(false);
@@ -243,7 +250,24 @@ export default function EditorPage({
   
   const nestedTree = buildTree(filteredTree);
   const baseContent = docsflowContent ?? githubContent ?? "";
-  const canPublish = !!selectedPath && (status === 'new' || status === 'modified');
+  const canPublish =
+    !!selectedPath &&
+    (status === 'new' || status === 'modified') &&
+    !isDirty &&
+    !incomingUpdate;
+  const formattedStatus = status ? status.charAt(0).toUpperCase() + status.slice(1) : "Unknown";
+  const formatTimestamp = (value: Date | string | null) => {
+    if (!value) return "—";
+    const date = typeof value === "string" ? new Date(value) : value;
+    if (Number.isNaN(date.getTime())) return "—";
+    return new Intl.DateTimeFormat("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(date);
+  };
   const selectedExtension = selectedPath?.split('.').pop()?.toLowerCase() || '';
   const isSvg = selectedExtension === 'svg';
   const isImageAsset = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'avif'].includes(selectedExtension);
@@ -293,17 +317,33 @@ export default function EditorPage({
 
   const markDirty = useCallback((nextValue: string) => {
     currentContentRef.current = nextValue;
-    setIsDirty((prev) => (prev ? prev : true));
+    setIsDirty(nextValue !== (lastSavedContentRef.current ?? ""));
   }, []);
+
+  const syncDirtyFromEditor = useCallback(() => {
+    if (!selectedPath) return;
+    if (mdxEditorRef.current && typeof mdxEditorRef.current.getMarkdown === "function") {
+      const value = mdxEditorRef.current.getMarkdown();
+      if (typeof value === "string") {
+        currentContentRef.current = value;
+        setIsDirty(value !== (lastSavedContentRef.current ?? ""));
+      }
+    }
+  }, [selectedPath]);
 
   const getCurrentContent = useCallback(() => {
     return currentContentRef.current ?? content;
   }, [content]);
 
   const handleSave = async () => {
-    const contentToSave = getCurrentContent();
+    const contentToSave =
+      (mdxEditorRef.current && typeof mdxEditorRef.current.getMarkdown === "function"
+        ? mdxEditorRef.current.getMarkdown()
+        : null) ?? getCurrentContent();
     const success = await onSave(contentToSave);
     if (!success) return;
+    currentContentRef.current = contentToSave;
+    lastSavedContentRef.current = contentToSave;
     setIsDirty(false);
     toast.success("Draft saved successfully", {
       description: `Changes to ${selectedPath?.split('/').pop()} have been recorded.`,
@@ -347,9 +387,11 @@ export default function EditorPage({
   };
 
   useEffect(() => {
+    const base = docsflowContent ?? githubContent ?? content ?? "";
+    lastSavedContentRef.current = base;
     currentContentRef.current = content;
-    setIsDirty(false);
-  }, [content, selectedPath]);
+    setIsDirty(currentContentRef.current !== lastSavedContentRef.current);
+  }, [content, selectedPath, docsflowContent, githubContent]);
 
   return (
     <TooltipProvider>
@@ -424,17 +466,25 @@ export default function EditorPage({
 
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button 
-                    size="sm" 
-                    onClick={onPublish}
-                    disabled={!canPublish || isLoading}
-                    className="h-8 gap-2 rounded-full px-4 text-[11px] font-bold"
+                    <Button 
+                      size="sm" 
+                      onClick={onPublish}
+                      disabled={!canPublish || isLoading || isPublishing}
+                      className="h-8 gap-2 rounded-full px-4 text-[11px] font-bold"
                   >
-                    <Send size={14} /> Publish
+                    <Send size={14} /> {isPublishing ? "Publishing..." : "Publish"}
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  {canPublish ? 'Push to GitHub' : 'No saved changes to publish'}
+                  {isPublishing
+                    ? 'Publishing...'
+                    : incomingUpdate
+                    ? 'Resolve incoming changes before publishing'
+                    : isDirty
+                    ? 'Save changes before publishing'
+                    : canPublish
+                    ? 'Push to GitHub'
+                    : 'No saved changes to publish'}
                 </TooltipContent>
               </Tooltip>
 
@@ -458,6 +508,19 @@ export default function EditorPage({
               </Tooltip>
             </div>
           </header>
+          <div className="border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+            <div className="px-6 py-2 flex items-center gap-3 text-xs font-medium text-muted-foreground">
+              <Badge variant="secondary" className="text-[10px] uppercase tracking-wider">
+                {formattedStatus}
+              </Badge>
+              <span>Last edited by</span>
+              <span className="text-foreground font-semibold">
+                {lastEditedBy || "Unknown"}
+              </span>
+              <span className="text-muted-foreground">•</span>
+              <span>{formatTimestamp(lastEditedAt)}</span>
+            </div>
+          </div>
 
           {/* Incoming Update Banner */}
           {incomingUpdate && !isResolveModalOpen && (
@@ -482,7 +545,12 @@ export default function EditorPage({
                 <p className="text-[10px] font-bold uppercase tracking-widest">Fetching Content</p>
               </div>
             ) : selectedPath ? (
-              <div className="h-full bg-background rounded-xl border shadow-sm flex flex-col overflow-hidden focus-within:ring-1 focus-within:ring-primary/20 transition-all">
+              <div
+                className="h-full bg-background rounded-xl border shadow-sm flex flex-col overflow-hidden focus-within:ring-1 focus-within:ring-primary/20 transition-all"
+                onKeyDownCapture={syncDirtyFromEditor}
+                onInputCapture={syncDirtyFromEditor}
+                onPasteCapture={syncDirtyFromEditor}
+              >
                 {selectedPath.endsWith('.md') || selectedPath.endsWith('.mdx') ? (
                   <MdxEditor
                     ref={mdxEditorRef}

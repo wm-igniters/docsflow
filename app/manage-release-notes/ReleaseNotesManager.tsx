@@ -12,9 +12,12 @@ export default function ReleaseNotesManager() {
     githubContent,
     docsflowContent,
     status,
+    lastUpdatedBy,
+    lastUpdatedAt,
     history, 
     isLoading, 
     isLoadingContent,
+    isPublishing,
     incomingUpdate,
     setSelectedPath,
     save,
@@ -44,8 +47,11 @@ export default function ReleaseNotesManager() {
         githubContent={githubContent}
         docsflowContent={docsflowContent}
         status={status}
+        lastEditedBy={lastUpdatedBy}
+        lastEditedAt={lastUpdatedAt}
         onSave={save}
         onPublish={publish}
+        isPublishing={isPublishing}
         history={history}
         isLoading={isLoadingContent}
         incomingUpdate={incomingUpdate}

@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { getReleaseNotesTree, getReleaseNoteContent, updateReleaseNote } from './actions';
 import { performMerge } from '@/lib/utils/diff3';
 import { DB_CONFIG, GITHUB_CONFIG } from '@/lib/config.mjs';
+import { toast } from "sonner";
 
 interface ReleaseNotesContextType {
   tree: any[];
@@ -12,9 +13,12 @@ interface ReleaseNotesContextType {
   githubContent: string | null;
   docsflowContent: string | null;
   status: 'new' | 'modified' | 'published' | null;
+  lastUpdatedBy: string | null;
+  lastUpdatedAt: Date | string | null;
   history: any[];
   isLoading: boolean;
   isLoadingContent: boolean;
+  isPublishing: boolean;
   error: string | null;
   incomingUpdate: string | null;
   setSelectedPath: (path: string) => void;
@@ -34,11 +38,18 @@ export function ReleaseNotesProvider({ children }: { children: React.ReactNode }
   const [githubContent, setGithubContent] = useState<string | null>(null);
   const [docsflowContent, setDocsflowContent] = useState<string | null>(null);
   const [status, setStatus] = useState<'new' | 'modified' | 'published' | null>(null);
+  const [lastUpdatedBy, setLastUpdatedBy] = useState<string | null>(null);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | string | null>(null);
   const [history, setHistory] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingContent, setIsLoadingContent] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [incomingUpdate, setIncomingUpdate] = useState<string | null>(null);
+  const [incomingUpdateMeta, setIncomingUpdateMeta] = useState<{
+    last_updated_by?: string | null;
+    last_update_timestamp?: Date | string | null;
+  } | null>(null);
 
   const fetchTree = useCallback(async () => {
     setIsLoading(true);
@@ -66,6 +77,8 @@ export function ReleaseNotesProvider({ children }: { children: React.ReactNode }
         setDocsflowContent(docsflowData);
         setGithubContent(githubData);
         setStatus(doc.status ?? null);
+        setLastUpdatedBy(doc.last_updated_by ?? null);
+        setLastUpdatedAt(doc.last_update_timestamp ?? null);
         setSelectedContent(
           docsflowData !== null && docsflowData !== undefined
             ? docsflowData
@@ -90,7 +103,7 @@ export function ReleaseNotesProvider({ children }: { children: React.ReactNode }
   const save = async (contentOverride?: string) => {
     if (!selectedPath) return false;
     if (incomingUpdate !== null) {
-      alert("Please merge upstream changes before saving.");
+      toast.error("Please merge upstream changes before saving.");
       return false;
     }
     const contentToSave = contentOverride ?? selectedContent;
@@ -104,27 +117,61 @@ export function ReleaseNotesProvider({ children }: { children: React.ReactNode }
           setDocsflowContent(contentToSave);
         }
         setStatus(result.doc?.status ?? 'modified');
+        setLastUpdatedBy(result.doc?.last_updated_by ?? null);
+        setLastUpdatedAt(result.doc?.last_update_timestamp ?? null);
         setSelectedContent(contentToSave);
-        alert("Draft saved successfully!");
+        toast.success("Draft saved successfully!");
         return true;
       } else {
-        alert("Failed to save: " + result.error);
+        toast.error("Failed to save: " + result.error);
         return false;
       }
     } catch (err: any) {
-      alert("Error saving: " + err.message);
+      toast.error("Error saving: " + err.message);
       return false;
     }
   };
 
   const publish = async () => {
-    alert("Publish functionality will be added later.");
+    if (!selectedPath) return;
+    if (incomingUpdate !== null) {
+      toast.error("Please merge upstream changes before publishing.");
+      return;
+    }
+    if (isPublishing) return;
+    setIsPublishing(true);
+    try {
+      const response = await fetch("/api/github/publish/release-notes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ docId: selectedPath }),
+      });
+      const result = await response.json();
+
+      if (response.ok) {
+        toast.success("Successfully created PR!");
+        if (result.pr_url) {
+          window.open(result.pr_url, "_blank");
+        }
+        await fetchContent(selectedPath);
+      } else {
+        toast.error(`Failed to publish: ${result.error || "Unknown error"}`);
+      }
+    } catch (err: any) {
+      toast.error("An error occurred while publishing to GitHub.");
+      console.error("Publish error:", err);
+    } finally {
+      setIsPublishing(false);
+    }
   };
 
   const resolveIncomingUpdate = (newDocsflowData: string, newSelectedContent: string) => {
     setDocsflowContent(newDocsflowData);
+    setLastUpdatedBy(incomingUpdateMeta?.last_updated_by ?? lastUpdatedBy ?? null);
+    setLastUpdatedAt(incomingUpdateMeta?.last_update_timestamp ?? lastUpdatedAt ?? null);
     setSelectedContent(newSelectedContent);
     setIncomingUpdate(null);
+    setIncomingUpdateMeta(null);
   };
 
   // Initial Fetch
@@ -174,6 +221,10 @@ export function ReleaseNotesProvider({ children }: { children: React.ReactNode }
                
                console.log("Remote update detected, setting incomingUpdate");
                setIncomingUpdate(remoteDocsflowData);
+               setIncomingUpdateMeta({
+                 last_updated_by: doc.last_updated_by ?? null,
+                 last_update_timestamp: doc.last_update_timestamp ?? null,
+               });
              }).catch(err => {
                console.error("Failed to fetch doc update for live sync", err);
              });
@@ -207,9 +258,12 @@ export function ReleaseNotesProvider({ children }: { children: React.ReactNode }
       githubContent,
       docsflowContent,
       status,
+      lastUpdatedBy,
+      lastUpdatedAt,
       history,
       isLoading,
       isLoadingContent,
+      isPublishing,
       error,
       incomingUpdate,
       setSelectedPath,
