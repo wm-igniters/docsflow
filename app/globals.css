@@ -138,8 +138,52 @@
   --mdx-prose-muted: rgba(74, 74, 74, 1);
   --mdx-prose-border: rgba(37, 44, 50, 0.1);
   --mdx-prose-code-bg: rgba(240, 245, 255, 1);
-  --ifm-color-primary: var(--mdx-prose-link);
-  --ifm-color-primary-darker: #0b5fb5;
+  --ifm-font-family-base: "Inter", sans-serif;
+  --ifm-font-size-base: 16px;
+  --ifm-heading-font-family: var(--ifm-font-family-base);
+  --ifm-heading-font-weight: 700;
+  --ifm-heading-line-height: 1.25;
+  --ifm-h5-font-size: 0.875rem;
+  --ifm-global-radius: 0.4rem;
+  --ifm-global-shadow-lw: 0 1px 2px 0 rgba(0, 0, 0, 0.1);
+  --ifm-spacing-vertical: 1rem;
+  --ifm-spacing-horizontal: 32px;
+  --ifm-alert-border-width: 0px;
+  --ifm-alert-border-left-width: 5px;
+  --ifm-alert-border-radius: var(--ifm-global-radius);
+  --ifm-alert-shadow: var(--ifm-global-shadow-lw);
+  --ifm-alert-padding-horizontal: var(--ifm-spacing-horizontal);
+  --ifm-alert-padding-vertical: var(--ifm-spacing-vertical);
+  --ifm-color-primary: rgba(23, 148, 239, 1);
+  --ifm-color-primary-hover: var(--ifm-color-secondary);
+  --ifm-color-secondary: rgba(11, 99, 229, 1);
+  --ifm-color-tertiary: rgba(9, 127, 213, 1);
+  --ifm-color-success: #00a400;
+  --ifm-color-info: #54c7ec;
+  --ifm-color-warning: #ffba00;
+  --ifm-color-danger: #fa383e;
+  --ifm-color-dark: rgba(24, 24, 27, 1);
+  --ifm-color-dark-surface: #fff;
+  --ifm-color-white: rgba(255, 255, 255, 1);
+  --ifm-color-primary-lightest: rgba(240, 245, 255, 1);
+  --ifm-link-color: var(--mdx-prose-link);
+  --ifm-color-primary-contrast-background: rgb(235, 242, 252);
+  --ifm-color-primary-contrast-foreground: rgb(16, 36, 69);
+  --ifm-color-secondary-dark: rgb(212, 213, 216);
+  --ifm-color-secondary-contrast-background: rgb(253, 253, 254);
+  --ifm-color-secondary-contrast-foreground: rgb(71, 71, 72);
+  --ifm-color-success-dark: rgb(0, 148, 0);
+  --ifm-color-success-contrast-background: rgb(230, 246, 230);
+  --ifm-color-success-contrast-foreground: rgb(0, 49, 0);
+  --ifm-color-info-dark: rgb(76, 179, 212);
+  --ifm-color-info-contrast-background: rgb(238, 249, 253);
+  --ifm-color-info-contrast-foreground: rgb(25, 60, 71);
+  --ifm-color-warning-dark: rgb(230, 167, 0);
+  --ifm-color-warning-contrast-background: rgb(255, 248, 230);
+  --ifm-color-warning-contrast-foreground: rgb(77, 56, 0);
+  --ifm-color-danger-dark: rgb(225, 50, 56);
+  --ifm-color-danger-contrast-background: rgb(255, 235, 236);
+  --ifm-color-danger-contrast-foreground: rgb(75, 17, 19);
   --ifm-color-emphasis-100: color-mix(in oklab, var(--mdx-prose-text), transparent 92%);
   --ifm-color-emphasis-200: color-mix(in oklab, var(--mdx-prose-text), transparent 85%);
   --ifm-color-emphasis-300: color-mix(in oklab, var(--mdx-prose-text), transparent 75%);
@@ -157,7 +201,25 @@
   --mdx-prose-muted: rgba(255, 255, 255, 0.8);
   --mdx-prose-border: rgba(255, 255, 255, 0.2);
   --mdx-prose-code-bg: rgba(255, 255, 255, 0.15);
-  --ifm-color-primary-darker: #2f6fe4;
+  --ifm-color-primary: #4c8dff;
+  --ifm-color-primary-lightest: rgba(255, 255, 255, 0.15);
+  --ifm-color-dark: #fff;
+  --ifm-color-dark-surface: rgba(24, 24, 27, 1);
+  --ifm-heading-color: #fff;
+  --ifm-font-color-base: rgba(255, 255, 255, 0.8);
+  --ifm-link-color: var(--mdx-prose-link);
+  --ifm-color-primary-contrast-background: rgb(16, 36, 69);
+  --ifm-color-primary-contrast-foreground: rgb(235, 242, 252);
+  --ifm-color-secondary-contrast-background: rgb(71, 71, 72);
+  --ifm-color-secondary-contrast-foreground: rgb(253, 253, 254);
+  --ifm-color-success-contrast-background: rgb(0, 49, 0);
+  --ifm-color-success-contrast-foreground: rgb(230, 246, 230);
+  --ifm-color-info-contrast-background: rgb(25, 60, 71);
+  --ifm-color-info-contrast-foreground: rgb(238, 249, 253);
+  --ifm-color-warning-contrast-background: rgb(77, 56, 0);
+  --ifm-color-warning-contrast-foreground: rgb(255, 248, 230);
+  --ifm-color-danger-contrast-background: rgb(75, 17, 19);
+  --ifm-color-danger-contrast-foreground: rgb(255, 235, 236);
 }
 
 .mdx-editor .mdx-prose {
@@ -293,6 +355,139 @@
   background: color-mix(in oklch, var(--mdx-prose-code-bg) 60%, transparent);
 }
 
+.mdx-editor .alert {
+  --ifm-code-background: var(--ifm-alert-background-color-highlight);
+  --ifm-link-color: var(--ifm-alert-foreground-color);
+  --ifm-link-hover-color: var(--ifm-alert-foreground-color);
+  --ifm-link-decoration: underline;
+  --ifm-tabs-color: var(--ifm-alert-foreground-color);
+  --ifm-tabs-color-active: var(--ifm-alert-foreground-color);
+  --ifm-tabs-color-active-border: var(--ifm-alert-border-color);
+  background-color: var(--ifm-alert-background-color);
+  border: var(--ifm-alert-border-width) solid var(--ifm-alert-border-color);
+  border-left-width: var(--ifm-alert-border-left-width);
+  border-radius: var(--ifm-alert-border-radius);
+  box-shadow: var(--ifm-alert-shadow);
+  color: var(--ifm-alert-foreground-color);
+  padding: var(--ifm-alert-padding-vertical) var(--ifm-alert-padding-horizontal);
+}
+
+.mdx-editor .alert--secondary {
+  --ifm-alert-background-color: var(--ifm-color-secondary-contrast-background);
+  --ifm-alert-background-color-highlight: rgba(235, 237, 240, 0.15);
+  --ifm-alert-foreground-color: var(--ifm-color-secondary-contrast-foreground);
+  --ifm-alert-border-color: var(--ifm-color-secondary-dark);
+}
+
+.mdx-editor .alert--success {
+  --ifm-alert-background-color: var(--ifm-color-success-contrast-background);
+  --ifm-alert-background-color-highlight: rgba(0, 164, 0, 0.15);
+  --ifm-alert-foreground-color: var(--ifm-color-success-contrast-foreground);
+  --ifm-alert-border-color: var(--ifm-color-success-dark);
+}
+
+.mdx-editor .alert--info {
+  --ifm-alert-background-color: var(--ifm-color-info-contrast-background);
+  --ifm-alert-background-color-highlight: rgba(84, 199, 236, 0.15);
+  --ifm-alert-foreground-color: var(--ifm-color-info-contrast-foreground);
+  --ifm-alert-border-color: var(--ifm-color-info-dark);
+}
+
+.mdx-editor .alert--warning {
+  --ifm-alert-background-color: var(--ifm-color-warning-contrast-background);
+  --ifm-alert-background-color-highlight: rgba(255, 186, 0, 0.15);
+  --ifm-alert-foreground-color: var(--ifm-color-warning-contrast-foreground);
+  --ifm-alert-border-color: var(--ifm-color-warning-dark);
+}
+
+.mdx-editor .alert--danger {
+  --ifm-alert-background-color: var(--ifm-color-danger-contrast-background);
+  --ifm-alert-background-color-highlight: rgba(250, 56, 62, 0.15);
+  --ifm-alert-foreground-color: var(--ifm-color-danger-contrast-foreground);
+  --ifm-alert-border-color: var(--ifm-color-danger-dark);
+}
+
+.mdx-editor .alert a {
+  color: var(--ifm-link-color);
+  text-decoration-color: var(--ifm-alert-border-color);
+}
+
+.mdx-editor .alert a:hover {
+  text-decoration-thickness: 2px;
+}
+
+.mdx-editor .alert .close {
+  color: var(--ifm-alert-foreground-color);
+  margin: calc(var(--ifm-alert-padding-vertical) * -1)
+    calc(var(--ifm-alert-padding-horizontal) * -1) 0 0;
+  opacity: 0.75;
+}
+
+.mdx-editor .alert .close:hover,
+.mdx-editor .alert .close:focus {
+  opacity: 1;
+}
+
+.mdx-editor .admonition {
+  margin-bottom: 1em;
+}
+
+.mdx-editor .admonitionHeading {
+  font: var(--ifm-heading-font-weight) var(--ifm-h5-font-size) /
+    var(--ifm-heading-line-height) var(--ifm-heading-font-family);
+  text-transform: uppercase;
+}
+
+.mdx-editor .admonitionHeading:not(:last-child) {
+  margin-bottom: 0.3rem;
+}
+
+.mdx-editor .admonitionHeading code {
+  text-transform: none;
+}
+
+.mdx-editor .admonitionIcon {
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 0.4em;
+}
+
+.mdx-editor .admonitionIcon svg {
+  display: inline-block;
+  height: 1.6em;
+  width: 1.6em;
+  fill: var(--ifm-alert-foreground-color);
+  stroke: var(--ifm-alert-foreground-color);
+  stroke-width: 0;
+}
+
+.mdx-editor .admonitionTitleInput {
+  appearance: none;
+  background: transparent;
+  border: none;
+  color: inherit;
+  font: inherit;
+  margin: 0;
+  padding: 0;
+  display: inline-block;
+  vertical-align: middle;
+  text-transform: inherit;
+  width: auto;
+}
+
+.mdx-editor .admonitionTitleInput::placeholder {
+  color: inherit;
+  opacity: 1;
+}
+
+.mdx-editor .admonitionTitleInput:focus {
+  outline: none;
+}
+
+.mdx-editor .admonitionContent > :last-child {
+  margin-bottom: 0;
+}
+
 .mdx-editor .mdx-prose hr {
   margin: 2rem 0;
   border: 0;
@@ -306,6 +501,11 @@
   border-radius: 0.35rem;
   background: var(--mdx-prose-code-bg);
   color: var(--mdx-prose-text);
+}
+
+.mdx-editor .alert code {
+  background: var(--ifm-code-background);
+  color: inherit;
 }
 
 .mdx-editor .mdx-prose pre {
