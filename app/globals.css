@@ -1,5 +1,8 @@
 @import url("https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&display=swap");
 @import "tailwindcss";
+@import "../components/docs/LayoutComponents/Tabs.css";
+@import "../components/docs/VideoCard/VideoCard.css";
+@import "../components/docs/AcademyCard/AcademyCard.css";
 
 
 
@@ -135,6 +138,15 @@
   --mdx-prose-muted: rgba(74, 74, 74, 1);
   --mdx-prose-border: rgba(37, 44, 50, 0.1);
   --mdx-prose-code-bg: rgba(240, 245, 255, 1);
+  --ifm-color-primary: var(--mdx-prose-link);
+  --ifm-color-primary-darker: #0b5fb5;
+  --ifm-color-emphasis-100: color-mix(in oklab, var(--mdx-prose-text), transparent 92%);
+  --ifm-color-emphasis-200: color-mix(in oklab, var(--mdx-prose-text), transparent 85%);
+  --ifm-color-emphasis-300: color-mix(in oklab, var(--mdx-prose-text), transparent 75%);
+  --ifm-color-emphasis-600: color-mix(in oklab, var(--mdx-prose-text), transparent 40%);
+  --ifm-background-color: var(--background);
+  --ifm-heading-color: var(--mdx-prose-heading);
+  --ifm-font-color-base: var(--mdx-prose-text);
 }
 
 .dark .mdx-editor,
@@ -145,6 +157,7 @@
   --mdx-prose-muted: rgba(255, 255, 255, 0.8);
   --mdx-prose-border: rgba(255, 255, 255, 0.2);
   --mdx-prose-code-bg: rgba(255, 255, 255, 0.15);
+  --ifm-color-primary-darker: #2f6fe4;
 }
 
 .mdx-editor .mdx-prose {

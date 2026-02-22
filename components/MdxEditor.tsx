@@ -33,10 +33,38 @@ import {
   directivesPlugin,
   AdmonitionDirectiveDescriptor,
   InsertAdmonition,
+  jsxPlugin,
+  CodeMirrorEditor,
+  type CodeBlockEditorDescriptor,
 } from "@mdxeditor/editor";
 import type { MDXEditorMethods } from "@mdxeditor/editor";
 import "@mdxeditor/editor/style.css";
 import { useTheme } from "next-themes";
+import {
+  docsComponentDescriptors,
+  DocsComponentsToolbar,
+} from "@/components/docs/DocsMdxComponents";
+
+const CODE_BLOCK_LANGUAGES = {
+  js: "JavaScript",
+  ts: "TypeScript",
+  css: "CSS",
+  html: "HTML",
+  json: "JSON",
+  bash: "Bash",
+  yaml: "YAML",
+} as const;
+
+const FALLBACK_CODE_BLOCK_DESCRIPTOR: CodeBlockEditorDescriptor = {
+  priority: 0,
+  match: (language, meta) => {
+    const normalized = (language ?? "").toLowerCase();
+    if (meta) return true;
+    if (!normalized) return true;
+    return !Object.hasOwn(CODE_BLOCK_LANGUAGES, normalized);
+  },
+  Editor: CodeMirrorEditor,
+};
 
 type ViewMode = "rich-text" | "source" | "diff";
 
@@ -66,6 +94,7 @@ export const MdxEditor = React.forwardRef<MDXEditorMethods, MdxEditorProps>(
   ref
 ) {
   const { resolvedTheme } = useTheme();
+  const themeName = resolvedTheme === "dark" ? "dark" : "light";
 
   const imageUploadHandler = useCallback(async (image: File) => {
     const formData = new FormData();
@@ -97,20 +126,18 @@ export const MdxEditor = React.forwardRef<MDXEditorMethods, MdxEditorProps>(
       linkPlugin(),
       linkDialogPlugin(),
       frontmatterPlugin(),
-      codeBlockPlugin({ defaultCodeBlockLanguage: "js" }),
+      codeBlockPlugin({
+        defaultCodeBlockLanguage: "js",
+        codeBlockEditorDescriptors: [FALLBACK_CODE_BLOCK_DESCRIPTOR],
+      }),
       directivesPlugin({
         directiveDescriptors: [AdmonitionDirectiveDescriptor],
       }),
+      jsxPlugin({
+        jsxComponentDescriptors: docsComponentDescriptors,
+      }),
       codeMirrorPlugin({
-        codeBlockLanguages: {
-          js: "JavaScript",
-          ts: "TypeScript",
-          css: "CSS",
-          html: "HTML",
-          json: "JSON",
-          bash: "Bash",
-          yaml: "YAML",
-        },
+        codeBlockLanguages: CODE_BLOCK_LANGUAGES,
       }),
       diffSourcePlugin({
         diffMarkdown: diffMarkdown ?? markdown,
@@ -145,6 +172,8 @@ export const MdxEditor = React.forwardRef<MDXEditorMethods, MdxEditorProps>(
               <InsertCodeBlock />
               <InsertAdmonition />
               <InsertFrontmatter />
+              <div className="w-px h-6 bg-border mx-1" />
+              <DocsComponentsToolbar uploadAsset={imageUploadHandler} />
             </div>
           </DiffSourceToggleWrapper>
         ),
@@ -158,12 +187,13 @@ export const MdxEditor = React.forwardRef<MDXEditorMethods, MdxEditorProps>(
       showDiff,
       showRichText,
       showSource,
+      docsComponentDescriptors,
     ]
   );
 
   return (
     <div className="w-full h-full border border-border rounded-md bg-background overflow-hidden text-foreground max-h-screen overflow-y-auto">
-      <div className={resolvedTheme === "dark" ? "dark-theme" : "light-theme"}>
+      <div className={`${themeName}-theme`} data-theme={themeName}>
         <MDXEditor
           ref={ref}
           markdown={markdown}
