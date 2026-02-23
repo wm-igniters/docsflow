@@ -1,0 +1,12 @@
+diff --git a/node_modules/@mdxeditor/editor/dist/plugins/core/index.js b/node_modules/@mdxeditor/editor/dist/plugins/core/index.js
+index 0b2f589..6f8b6e5 100644
+--- a/node_modules/@mdxeditor/editor/dist/plugins/core/index.js
++++ b/node_modules/@mdxeditor/editor/dist/plugins/core/index.js
+@@ -284,6 +284,6 @@ const corePlugin = realmPlugin({
+           });
+         });
+-        r.pub(markdown$, theNewMarkdownValue.trim());
++        r.pub(markdown$, theNewMarkdownValue.replace(/\n*$/, "\n"));
+         r.pub(initialMarkdownNormalize$, false);
+       });
+     },

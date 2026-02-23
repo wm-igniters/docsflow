@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "postinstall": "node patches/scripts/apply-mdxeditor-patch.mjs",
     "sync-github": "node scripts/sync-github.mjs"
   },
   "dependencies": {
@@ -41,6 +42,7 @@
     "tailwindcss-animate": "^1.0.7"
   },
   "devDependencies": {
+    "patch-package": "^8.0.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
