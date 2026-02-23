@@ -17,7 +17,6 @@ pipeline {
     MONGODB_URI = credentials('mongodb_uri')
     GITHUB_TOKEN = credentials('docs_flow_github_token')
     GITHUB_WEBHOOK_SECRET = credentials('docs_flow_github_secret')
-    AWS_REGION='us-east-1'
     AWS_S3_BUCKET='wm-docs-flow'
     AWS_ACCESS_KEY_ID= credentials('docsflow_aws_accesskeyid')
     AWS_SECRET_ACCESS_KEY= credentials('docsflow_aws_accesssecretkey')
