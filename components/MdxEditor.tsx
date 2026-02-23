@@ -53,6 +53,8 @@ import {
   usePublisher,
   useMdastNodeUpdater,
 } from "@mdxeditor/editor";
+import type { Paragraph } from "mdast";
+import type { ContainerDirective } from "mdast-util-directive";
 import type { MDXEditorMethods } from "@mdxeditor/editor";
 import "@mdxeditor/editor/style.css";
 import { useTheme } from "next-themes";
@@ -145,7 +147,7 @@ const getDirectiveLabelText = (node: any) => {
     .join("");
 };
 
-const createDirectiveLabelParagraph = (title: string) => ({
+const createDirectiveLabelParagraph = (title: string): Paragraph => ({
   type: "paragraph",
   data: { directiveLabel: true },
   children: [{ type: "text", value: title }],
@@ -159,12 +161,12 @@ const createAdmonitionDirectiveDescriptor = ({
   typeNames: Set<string>;
   titleAttribute: string;
   labelMap: Record<string, string>;
-}): DirectiveDescriptor => {
+}): DirectiveDescriptor<ContainerDirective> => {
   const AdmonitionEditor = ({
     mdastNode,
-  }: DirectiveEditorProps) => {
+  }: DirectiveEditorProps<ContainerDirective>) => {
     const { config } = useNestedEditorContext();
-    const updateMdastNode = useMdastNodeUpdater();
+    const updateMdastNode = useMdastNodeUpdater<ContainerDirective>();
     const className =
       config.theme.admonition?.[mdastNode.name] ??
       cn(
@@ -184,7 +186,7 @@ const createAdmonitionDirectiveDescriptor = ({
     const [title, setTitle] = useState(titleValue);
     const contentChildren = (mdastNode.children ?? []).filter(
       (child) => !isDirectiveLabelParagraph(child)
-    );
+    ) as ContainerDirective["children"];
     const label =
       labelMap[mdastNode.name ?? "note"] ??
       formatAdmonitionLabel(mdastNode.name ?? "note");
@@ -224,7 +226,7 @@ const createAdmonitionDirectiveDescriptor = ({
           />
         </div>
         <div className="admonitionContent">
-          <NestedLexicalEditor
+          <NestedLexicalEditor<ContainerDirective>
             block
             getContent={() => contentChildren}
             getUpdatedMdastNode={(mdastNode2, children) => {
@@ -239,7 +241,7 @@ const createAdmonitionDirectiveDescriptor = ({
                 attributes: Object.keys(nextAttributes).length
                   ? nextAttributes
                   : undefined,
-                children: nextChildren,
+                children: nextChildren as ContainerDirective["children"],
               };
             }}
           />
@@ -266,7 +268,6 @@ const AdmonitionIcon = ({ type }: { type: string }) => {
       return (
         <svg viewBox="0 0 12 16" aria-hidden="true">
           <path
-            d="M10 2a6 6 0 0 0-3.75 10.69c.44.36.75.88.87 1.46l.14.71h5.48l.14-.71c.12-.58.43-1.1.87-1.46A6 6 0 0 0 10 2zm2.07 15.28a1 1 0 0 1-.99.72H8.92a1 1 0 0 1-.99-.72l-.2-.78h4.54l-.2.78z"
             fillRule="evenodd"
             d="M6.5 0C3.48 0 1 2.19 1 5c0 .92.55 2.25 1 3 1.34 2.25 1.78 2.78 2 4v1h5v-1c.22-1.22.66-1.75 2-4 .45-.75 1-2.08 1-3 0-2.81-2.48-5-5.5-5zm3.64 7.48c-.25.44-.47.8-.67 1.11-.86 1.41-1.25 2.06-1.45 3.23-.02.05-.02.11-.02.17H5c0-.06 0-.13-.02-.17-.2-1.17-.59-1.83-1.45-3.23-.2-.31-.42-.67-.67-1.11C2.44 6.78 2 5.65 2 5c0-2.2 2.02-4 4.5-4 1.22 0 2.36.42 3.22 1.19C10.55 2.94 11 3.94 11 5c0 .66-.44 1.78-.86 2.48zM4 14h5c-.23 1.14-1.3 2-2.5 2s-2.27-.86-2.5-2z"
           />
