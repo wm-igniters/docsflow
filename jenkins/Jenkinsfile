@@ -7,21 +7,20 @@ pipeline {
 
   environment {
     REMOTE_SERVER = "172.31.27.164"
-    AWS_REGION = 'us-east-1'
-    ECR_REPO = 'poc-misc'
+    AWS_REGION    = 'us-east-1'
+    ECR_REPO      = 'poc-misc'
     DEPLOYMENT_KEY = 'wm-docs-ssh-key'
 
-    AUTH_SECRET = credentials('auth_secret')
-    AUTH_GOOGLE_ID = credentials('auth_google_id')
-    AUTH_GOOGLE_SECRET = credentials('auth_google_secret')
-    MONGODB_URI = credentials('mongodb_uri')
-    GITHUB_TOKEN = credentials('docs_flow_github_token')
-    GITHUB_WEBHOOK_SECRET = credentials('docs_flow_github_secret')
-    AWS_S3_BUCKET='wm-docs-flow'
-    AWS_ACCESS_KEY_ID= credentials('docsflow_aws_accesskeyid')
+    AUTH_SECRET          = credentials('auth_secret')
+    AUTH_GOOGLE_ID       = credentials('auth_google_id')
+    AUTH_GOOGLE_SECRET   = credentials('auth_google_secret')
+    MONGODB_URI          = credentials('mongodb_uri')
+    GITHUB_TOKEN         = credentials('docs_flow_github_token')
+    GITHUB_WEBHOOK_SECRET= credentials('docs_flow_github_secret')
+
+    AWS_S3_BUCKET        = 'wm-docs-flow'
+    AWS_ACCESS_KEY_ID    = credentials('docsflow_aws_accesskeyid')
     AWS_SECRET_ACCESS_KEY= credentials('docsflow_aws_accesssecretkey')
-
-
   }
 
   stages {
@@ -32,8 +31,9 @@ pipeline {
 
           def rawBranch = (env.BRANCH_NAME ?: env.GIT_BRANCH ?: '')
           def branchName = rawBranch.replaceFirst(/^origin\//, '').trim()
+
           if (!branchName) {
-            error "Unable to resolve branch name. Ensure this runs in a multibranch pipeline or set BRANCH_NAME/GIT_BRANCH."
+            error "Unable to resolve branch name."
           }
 
           def branchConfig = [
@@ -62,9 +62,6 @@ pipeline {
           env.IMAGE_TAG      = config.imageTag
 
           echo "Deploying branch: ${branchName}"
-          echo "Container: ${env.CONTAINER_NAME}"
-          echo "Port: ${env.HTTP_PORT}"
-          echo "Auth URL: ${env.AUTH_URL}"
         }
       }
     }
@@ -73,6 +70,7 @@ pipeline {
       steps {
         script {
           withAWS(region: AWS_REGION, credentials: 'wm-ps-user-ecr') {
+
             def awsAccountID = sh(
               returnStdout: true,
               script: "aws sts get-caller-identity --query Account --output text"
@@ -96,6 +94,7 @@ pipeline {
       steps {
         script {
           withAWS(region: AWS_REGION, credentials: 'wm-ps-user-ecr') {
+
             def awsAccountID = sh(
               returnStdout: true,
               script: "aws sts get-caller-identity --query Account --output text"
@@ -103,10 +102,10 @@ pipeline {
 
             sh """
               docker tag ${ECR_REPO}:${IMAGE_TAG} \
-                ${awsAccountID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}
+              ${awsAccountID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}
 
               docker push \
-                ${awsAccountID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}
+              ${awsAccountID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}
             """
           }
         }
@@ -116,6 +115,7 @@ pipeline {
     stage('Deploy Docker Container') {
       steps {
         script {
+
           sshagent([DEPLOYMENT_KEY]) {
             withAWS(region: AWS_REGION, credentials: 'wm-ps-user-ecr') {
 
@@ -124,15 +124,14 @@ pipeline {
                 script: "aws sts get-caller-identity --query Account --output text"
               ).trim()
 
-              def containerExists = sh(
-                returnStdout: true,
-                script: "ssh -o StrictHostKeyChecking=no ubuntu@${REMOTE_SERVER} 'docker ps -a --filter name=${CONTAINER_NAME} --format \"{{.Names}}\"'"
-              ).trim()
+              // Remove old container if exists
+              sh """
+                ssh -o StrictHostKeyChecking=no ubuntu@${REMOTE_SERVER} '
+                  docker rm -f ${CONTAINER_NAME} || true
+                '
+              """
 
-              if (containerExists) {
-                sh "ssh -o StrictHostKeyChecking=no ubuntu@${REMOTE_SERVER} 'docker rm -f ${CONTAINER_NAME}'"
-              }
-
+              // Login to ECR on remote
               sh """
                 aws ecr get-login-password --region ${AWS_REGION} |
                 ssh -o StrictHostKeyChecking=no ubuntu@${REMOTE_SERVER} \
@@ -140,48 +139,34 @@ pipeline {
                 ${awsAccountID}.dkr.ecr.${AWS_REGION}.amazonaws.com'
               """
 
-              sh "ssh -o StrictHostKeyChecking=no ubuntu@${REMOTE_SERVER} 'docker pull ${awsAccountID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}'"
-
-              def shellQuote = { value ->
-                def sanitized = (value ?: '').replace("'", "'\"'\"'")
-                return "'${sanitized}'"
-              }
-
-              def envVars = [
-                "AUTH_SECRET=${shellQuote(AUTH_SECRET)}",
-                "AUTH_GOOGLE_ID=${shellQuote(AUTH_GOOGLE_ID)}",
-                "AUTH_GOOGLE_SECRET=${shellQuote(AUTH_GOOGLE_SECRET)}",
-                "MONGODB_URI=${shellQuote(MONGODB_URI)}",
-                "GITHUB_TOKEN=${shellQuote(GITHUB_TOKEN)}",
-                "GITHUB_WEBHOOK_SECRET=${shellQuote(GITHUB_WEBHOOK_SECRET)}",
-                "AUTH_TRUST_HOST='true'",
-                "AUTH_URL=${shellQuote(env.AUTH_URL)}",
-                "AWS_REGION=${shellQuote(AWS_REGION)}",
-                "AWS_S3_BUCKET=${shellQuote(AWS_S3_BUCKET)}",
-                "AWS_ACCESS_KEY_ID=${shellQuote(AWS_ACCESS_KEY_ID)}",
-                "AWS_SECRET_ACCESS_KEY=${shellQuote(AWS_SECRET_ACCESS_KEY)}"
-              ].join(' ')
-
-              def runCmd = """
-                ${envVars} docker run -d \
-                  --name ${CONTAINER_NAME} \
-                  -p ${HTTP_PORT}:3000 \
-                  -e AUTH_SECRET \
-                  -e AUTH_GOOGLE_ID \
-                  -e AUTH_GOOGLE_SECRET \
-                  -e MONGODB_URI \
-                  -e GITHUB_TOKEN \
-                  -e GITHUB_WEBHOOK_SECRET \
-                  -e AUTH_TRUST_HOST \
-                  -e AUTH_URL \
-                  -e AWS_REGION \
-                  -e AWS_S3_BUCKET \
-                  -e AWS_ACCESS_KEY_ID \
-                  -e AWS_SECRET_ACCESS_KEY \
-                  ${awsAccountID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}
+              // Pull latest image
+              sh """
+                ssh -o StrictHostKeyChecking=no ubuntu@${REMOTE_SERVER} '
+                  docker pull ${awsAccountID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}
+                '
               """
 
-              sh "ssh -o StrictHostKeyChecking=no ubuntu@${REMOTE_SERVER} ${shellQuote(runCmd)}"
+              // Run container with EXPLICIT ENV VALUES
+              sh """
+                ssh -o StrictHostKeyChecking=no ubuntu@${REMOTE_SERVER} '
+                  docker run -d \
+                    --name ${CONTAINER_NAME} \
+                    -p ${HTTP_PORT}:3000 \
+                    -e AUTH_SECRET="${AUTH_SECRET}" \
+                    -e AUTH_GOOGLE_ID="${AUTH_GOOGLE_ID}" \
+                    -e AUTH_GOOGLE_SECRET="${AUTH_GOOGLE_SECRET}" \
+                    -e MONGODB_URI="${MONGODB_URI}" \
+                    -e GITHUB_TOKEN="${GITHUB_TOKEN}" \
+                    -e GITHUB_WEBHOOK_SECRET="${GITHUB_WEBHOOK_SECRET}" \
+                    -e AUTH_TRUST_HOST=true \
+                    -e AUTH_URL="${AUTH_URL}" \
+                    -e AWS_REGION="${AWS_REGION}" \
+                    -e AWS_S3_BUCKET="${AWS_S3_BUCKET}" \
+                    -e AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}" \
+                    -e AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}" \
+                    ${awsAccountID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}
+                '
+              """
             }
           }
         }
