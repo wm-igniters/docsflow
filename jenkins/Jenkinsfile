@@ -7,46 +7,44 @@ pipeline {
 
   environment {
     REMOTE_SERVER = "172.31.27.164"
-    AWS_REGION    = 'us-east-1'
-    ECR_REPO      = 'poc-misc'
+    AWS_REGION = 'us-east-1'
+    ECR_REPO = 'poc-misc'
     DEPLOYMENT_KEY = 'wm-docs-ssh-key'
 
-    AUTH_SECRET          = credentials('auth_secret')
-    AUTH_GOOGLE_ID       = credentials('auth_google_id')
-    AUTH_GOOGLE_SECRET   = credentials('auth_google_secret')
-    MONGODB_URI          = credentials('mongodb_uri')
-    GITHUB_TOKEN         = credentials('docs_flow_github_token')
-    GITHUB_WEBHOOK_SECRET= credentials('docs_flow_github_secret')
+    AUTH_SECRET = credentials('auth_secret')
+    AUTH_GOOGLE_ID = credentials('auth_google_id')
+    AUTH_GOOGLE_SECRET = credentials('auth_google_secret')
+    MONGODB_URI = credentials('mongodb_uri')
+    GITHUB_TOKEN = credentials('docs_flow_github_token')
+    GITHUB_WEBHOOK_SECRET = credentials('docs_flow_github_secret')
 
-    AWS_S3_BUCKET        = 'wm-docs-flow'
-    AWS_ACCESS_KEY_ID    = credentials('docsflow_aws_accesskeyid')
-    AWS_SECRET_ACCESS_KEY= credentials('docsflow_aws_accesssecretkey')
+    AWS_S3_BUCKET = 'wm-docs-flow'
+    DOCSFLOW_AWS_ACCESS_KEY_ID = credentials('docsflow_aws_accesskeyid')
+    DOCSFLOW_AWS_SECRET_ACCESS_KEY = credentials('docsflow_aws_accesssecretkey')
   }
 
   stages {
-
     stage('Set Environment Based on Branch') {
       steps {
         script {
-
           def rawBranch = (env.BRANCH_NAME ?: env.GIT_BRANCH ?: '')
           def branchName = rawBranch.replaceFirst(/^origin\//, '').trim()
 
           if (!branchName) {
-            error "Unable to resolve branch name."
+            error 'Unable to resolve branch name.'
           }
 
           def branchConfig = [
-            dev: [
-              container: "dev-wm-docs-flow",
-              port     : "8022",
-              authUrl  : "https://dev-docsflow.wavemaker.ai",
+            dev : [
+              container: 'dev-wm-docs-flow',
+              port     : '8022',
+              authUrl  : 'https://dev-docsflow.wavemaker.ai',
               imageTag : "dev.wm-docs-flow.${env.BUILD_NUMBER}"
             ],
             main: [
-              container: "wm-docs-flow",
-              port     : "8035",
-              authUrl  : "https://docsflow.wavemaker.ai",
+              container: 'wm-docs-flow',
+              port     : '8035',
+              authUrl  : 'https://docsflow.wavemaker.ai',
               imageTag : "prod.wm-docs-flow.${env.BUILD_NUMBER}"
             ]
           ]
@@ -57,9 +55,9 @@ pipeline {
           }
 
           env.CONTAINER_NAME = config.container
-          env.HTTP_PORT      = config.port
-          env.AUTH_URL       = config.authUrl
-          env.IMAGE_TAG      = config.imageTag
+          env.HTTP_PORT = config.port
+          env.AUTH_URL = config.authUrl
+          env.IMAGE_TAG = config.imageTag
 
           echo "Deploying branch: ${branchName}"
         }
@@ -70,7 +68,6 @@ pipeline {
       steps {
         script {
           withAWS(region: AWS_REGION, credentials: 'wm-ps-user-ecr') {
-
             def awsAccountID = sh(
               returnStdout: true,
               script: "aws sts get-caller-identity --query Account --output text"
@@ -78,11 +75,11 @@ pipeline {
 
             sh """
               aws ecr get-login-password --region ${AWS_REGION} |
-              docker login --username AWS --password-stdin \
+              docker login --username AWS --password-stdin \\
               ${awsAccountID}.dkr.ecr.${AWS_REGION}.amazonaws.com
 
-              docker build \
-                --build-arg MONGODB_URI=dummy \
+              docker build \\
+                --build-arg MONGODB_URI=dummy \\
                 --tag ${ECR_REPO}:${IMAGE_TAG} .
             """
           }
@@ -94,17 +91,16 @@ pipeline {
       steps {
         script {
           withAWS(region: AWS_REGION, credentials: 'wm-ps-user-ecr') {
-
             def awsAccountID = sh(
               returnStdout: true,
               script: "aws sts get-caller-identity --query Account --output text"
             ).trim()
 
             sh """
-              docker tag ${ECR_REPO}:${IMAGE_TAG} \
+              docker tag ${ECR_REPO}:${IMAGE_TAG} \\
               ${awsAccountID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}
 
-              docker push \
+              docker push \\
               ${awsAccountID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}
             """
           }
@@ -115,56 +111,51 @@ pipeline {
     stage('Deploy Docker Container') {
       steps {
         script {
-
           sshagent([DEPLOYMENT_KEY]) {
             withAWS(region: AWS_REGION, credentials: 'wm-ps-user-ecr') {
-
               def awsAccountID = sh(
                 returnStdout: true,
                 script: "aws sts get-caller-identity --query Account --output text"
               ).trim()
 
-              // Remove old container if exists
               sh """
                 ssh -o StrictHostKeyChecking=no ubuntu@${REMOTE_SERVER} '
                   docker rm -f ${CONTAINER_NAME} || true
                 '
               """
 
-              // Login to ECR on remote
               sh """
                 aws ecr get-login-password --region ${AWS_REGION} |
-                ssh -o StrictHostKeyChecking=no ubuntu@${REMOTE_SERVER} \
-                'docker login --username AWS --password-stdin \
+                ssh -o StrictHostKeyChecking=no ubuntu@${REMOTE_SERVER} \\
+                'docker login --username AWS --password-stdin \\
                 ${awsAccountID}.dkr.ecr.${AWS_REGION}.amazonaws.com'
               """
 
-              // Pull latest image
               sh """
                 ssh -o StrictHostKeyChecking=no ubuntu@${REMOTE_SERVER} '
                   docker pull ${awsAccountID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}
                 '
               """
 
-              // Run container with EXPLICIT ENV VALUES
+              // Pass docsflow AWS creds under unique names so withAWS exports stay effective.
               sh """
                 ssh -o StrictHostKeyChecking=no ubuntu@${REMOTE_SERVER} '
-                  docker run -d \
-                    --name ${CONTAINER_NAME} \
-                    -p ${HTTP_PORT}:3000 \
-                    -e AUTH_SECRET="${AUTH_SECRET}" \
-                    -e AUTH_GOOGLE_ID="${AUTH_GOOGLE_ID}" \
-                    -e AUTH_GOOGLE_SECRET="${AUTH_GOOGLE_SECRET}" \
-                    -e MONGODB_URI="${MONGODB_URI}" \
-                    -e GITHUB_TOKEN="${GITHUB_TOKEN}" \
-                    -e GITHUB_WEBHOOK_SECRET="${GITHUB_WEBHOOK_SECRET}" \
-                    -e AUTH_TRUST_HOST=true \
-                    -e AUTH_URL="${AUTH_URL}" \
-                    -e AWS_REGION="${AWS_REGION}" \
-                    -e AWS_S3_BUCKET="${AWS_S3_BUCKET}" \
-                    -e AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}" \
-                    -e AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}" \
-                    -e AWS_EC2_METADATA_DISABLED=true \
+                  docker run -d \\
+                    --name ${CONTAINER_NAME} \\
+                    -p ${HTTP_PORT}:3000 \\
+                    -e AUTH_SECRET="${AUTH_SECRET}" \\
+                    -e AUTH_GOOGLE_ID="${AUTH_GOOGLE_ID}" \\
+                    -e AUTH_GOOGLE_SECRET="${AUTH_GOOGLE_SECRET}" \\
+                    -e MONGODB_URI="${MONGODB_URI}" \\
+                    -e GITHUB_TOKEN="${GITHUB_TOKEN}" \\
+                    -e GITHUB_WEBHOOK_SECRET="${GITHUB_WEBHOOK_SECRET}" \\
+                    -e AUTH_TRUST_HOST=true \\
+                    -e AUTH_URL="${AUTH_URL}" \\
+                    -e AWS_REGION="${AWS_REGION}" \\
+                    -e AWS_S3_BUCKET="${AWS_S3_BUCKET}" \\
+                    -e AWS_ACCESS_KEY_ID="${DOCSFLOW_AWS_ACCESS_KEY_ID}" \\
+                    -e AWS_SECRET_ACCESS_KEY="${DOCSFLOW_AWS_SECRET_ACCESS_KEY}" \\
+                    -e AWS_EC2_METADATA_DISABLED=true \\
                     ${awsAccountID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}
                 '
               """
