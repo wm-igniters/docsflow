@@ -157,10 +157,10 @@ pipeline {
                 "GITHUB_WEBHOOK_SECRET=${shellQuote(GITHUB_WEBHOOK_SECRET)}",
                 "AUTH_TRUST_HOST='true'",
                 "AUTH_URL=${shellQuote(env.AUTH_URL)}",
-                "AUTH_URL=${shellQuote(shellQuote(AWS_REGION)}",
-                "AUTH_URL=${shellQuote(shellQuote(AWS_S3_BUCKET)}",
-                "AUTH_URL=${shellQuote(shellQuote(AWS_ACCESS_KEY_ID)}",
-                "AUTH_URL=${shellQuote(shellQuote(AWS_SECRET_ACCESS_KEY)}"
+                "AWS_REGION=${shellQuote(AWS_REGION)}",
+                "AWS_S3_BUCKET=${shellQuote(AWS_S3_BUCKET)}",
+                "AWS_ACCESS_KEY_ID=${shellQuote(AWS_ACCESS_KEY_ID)}",
+                "AWS_SECRET_ACCESS_KEY=${shellQuote(AWS_SECRET_ACCESS_KEY)}"
               ].join(' ')
 
               def runCmd = """
