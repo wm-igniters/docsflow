@@ -17,6 +17,12 @@ pipeline {
     MONGODB_URI = credentials('mongodb_uri')
     GITHUB_TOKEN = credentials('docs_flow_github_token')
     GITHUB_WEBHOOK_SECRET = credentials('docs_flow_github_secret')
+    AWS_REGION='us-east-1'
+    AWS_S3_BUCKET='wm-docs-flow'
+    AWS_ACCESS_KEY_ID= credentials('docsflow_aws_accesskeyid')
+    AWS_SECRET_ACCESS_KEY= credentials('docsflow_aws_accesssecretkey')
+
+
   }
 
   stages {
@@ -150,7 +156,11 @@ pipeline {
                 "GITHUB_TOKEN=${shellQuote(GITHUB_TOKEN)}",
                 "GITHUB_WEBHOOK_SECRET=${shellQuote(GITHUB_WEBHOOK_SECRET)}",
                 "AUTH_TRUST_HOST='true'",
-                "AUTH_URL=${shellQuote(env.AUTH_URL)}"
+                "AUTH_URL=${shellQuote(env.AUTH_URL)}",
+                "AUTH_URL=${shellQuote(shellQuote(AWS_REGION)}",
+                "AUTH_URL=${shellQuote(shellQuote(AWS_S3_BUCKET)}",
+                "AUTH_URL=${shellQuote(shellQuote(AWS_ACCESS_KEY_ID)}",
+                "AUTH_URL=${shellQuote(shellQuote(AWS_SECRET_ACCESS_KEY)}"
               ].join(' ')
 
               def runCmd = """
@@ -165,6 +175,10 @@ pipeline {
                   -e GITHUB_WEBHOOK_SECRET \
                   -e AUTH_TRUST_HOST \
                   -e AUTH_URL \
+                  -e AWS_REGION \
+                  -e AWS_S3_BUCKET \
+                  -e AWS_ACCESS_KEY_ID \
+                  -e AWS_SECRET_ACCESS_KEY \
                   ${awsAccountID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}
               """
 
