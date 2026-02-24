@@ -3,6 +3,7 @@ WORKDIR /app
 
 FROM base AS deps
 COPY package.json package-lock.json* ./
+COPY patches ./patches
 RUN npm ci
 
 FROM base AS builder
@@ -21,10 +22,10 @@ ENV NODE_ENV=production
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next ./.next
 COPY package.json package-lock.json* ./
+COPY patches ./patches
 RUN npm ci --omit=dev
 
 EXPOSE 3000
 
 CMD ["npm", "start"]
-
 
