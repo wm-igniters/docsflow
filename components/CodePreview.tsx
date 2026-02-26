@@ -3,6 +3,14 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as ReactDOM from "react-dom/client";
 
+declare global {
+  interface Window {
+    React?: typeof React;
+    ReactDOM?: typeof ReactDOM;
+    __renderPreview?: () => void;
+  }
+}
+
 type PreviewLanguage = "html" | "jsx" | "tsx";
 
 interface CodePreviewProps {
