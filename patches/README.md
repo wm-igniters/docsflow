@@ -27,7 +27,7 @@ We accept the tradeoff and prefer correct file normalization. Removing the trim
 preserves the trailing newline without affecting other formatting rules.
 
 ## What we change
-Patch one line in:
+Patch line(s) in:
 `node_modules/@mdxeditor/editor/dist/plugins/core/index.js`
 
 Change:
@@ -52,13 +52,14 @@ with `\n\n` growing over time.
 ## How it is applied
 Postinstall runs:
 ```
-node patches/scripts/apply-mdxeditor-patch.mjs
+patch-package --patch-dir patches --error-on-warn
 ```
 
-The script:
-- Reads `package-lock.json`
-- Applies the patch only if `@mdxeditor/editor` is version `3.52.4`
-- Logs why it applied or skipped
+We keep a single patch file:
+- `patches/@mdxeditor+editor+3.52.4+001+newline.patch`
+
+`--error-on-warn` ensures installs fail if patch-package detects a version
+mismatch or other warnings.
 
 ## When updating @mdxeditor/editor
 If the version changes:
@@ -68,9 +69,8 @@ If the version changes:
    `node_modules/@mdxeditor/editor/dist/plugins/core/index.js` still trims the
    exported markdown and that we still want to override it.
 3. If the trim logic is still present and the override is still desired:
-   - First update or rewrite the patch to match the **new** library version logic and
-     confirm it applies cleanly and produces the desired trailing newline.
-   - Only after the patch is verified, update `expectedVersion` in
-     `patches/scripts/apply-mdxeditor-patch.mjs` to the new version.
-4. If the trim logic is gone or no longer needed, remove this patch + script +
+   - First update or rewrite the patch(es) to match the **new** library version
+     logic and confirm they apply cleanly and produce the desired behavior.
+   - Update the patch filenames to the new version.
+4. If the trim logic is gone or no longer needed, remove these patches and the
    postinstall entry.

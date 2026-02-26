@@ -52,6 +52,7 @@ import {
   lexicalTheme,
   usePublisher,
   useMdastNodeUpdater,
+  viewMode$,
 } from "@mdxeditor/editor";
 import type { Paragraph } from "mdast";
 import type { ContainerDirective } from "mdast-util-directive";
@@ -64,6 +65,18 @@ import {
   DocsComponentsToolbar,
 } from "@/components/docs/DocsMdxComponents";
 import { cn } from "@/lib/utils";
+import { validateMdxSource } from "@/lib/mdx/validateMdx";
+import { MdxPreview } from "@/components/MdxPreview";
+import { TabsWrapper, TabItem } from "@/components/docs/LayoutComponents/Tabs";
+import VideoCard from "@/components/docs/VideoCard/VideoCard";
+import AcademyCard from "@/components/docs/AcademyCard/AcademyCard";
+import { errorExtension, setError } from "@/lib/codemirror/errorExtension";
+import { EditorView } from "@codemirror/view";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 const CODE_BLOCK_LANGUAGES = {
   js: "JavaScript",
@@ -103,6 +116,7 @@ interface MdxEditorProps {
   markdown: string;
   diffMarkdown?: string;
   onChange?: (markdown: string) => void;
+  onValidationChange?: (error: string | null) => void;
   documentPath?: string; // used for Asset upload tracing
   defaultViewMode?: ViewMode;
   showRichText?: boolean;
@@ -340,12 +354,59 @@ const InsertCustomAdmonition = ({
   );
 };
 
+const ViewModeTracker = ({
+  onViewModeChange,
+}: {
+  onViewModeChange: (mode: ViewMode) => void;
+}) => {
+  const viewMode = useCellValue(viewMode$);
+
+  useEffect(() => {
+    onViewModeChange(viewMode);
+  }, [onViewModeChange, viewMode]);
+
+  return null;
+};
+
+// Helper to create a CodeMirror extension that captures the view reference
+const createViewRefExtension = (
+  viewRefCallback: (view: EditorView) => void,
+  errorRef: React.MutableRefObject<{ line: number; column?: number; message: string } | null>
+) => {
+  let lastViewInstance: EditorView | null = null;
+  
+  return EditorView.updateListener.of((update) => {
+    if (update.view) {
+      const isNewView = lastViewInstance !== update.view;
+      
+      if (isNewView) {
+        lastViewInstance = update.view;
+        viewRefCallback(update.view);
+        
+        // Apply stored error to new view instance
+        if (errorRef.current) {
+          console.log('[MdxEditor] Re-applying stored error to new view instance:', errorRef.current);
+          // Use setTimeout to avoid triggering during the same update cycle
+          setTimeout(() => {
+            if (update.view) {
+              update.view.dispatch({
+                effects: setError(errorRef.current),
+              });
+            }
+          }, 0);
+        }
+      }
+    }
+  });
+};
+
 export const MdxEditor = React.forwardRef<MDXEditorMethods, MdxEditorProps>(
   function MdxEditor(
   {
     markdown,
     diffMarkdown,
     onChange,
+    onValidationChange,
     documentPath = "unknown",
     defaultViewMode = "rich-text",
     showRichText = true,
@@ -359,6 +420,157 @@ export const MdxEditor = React.forwardRef<MDXEditorMethods, MdxEditorProps>(
   useImperativeHandle(ref, () => editorRef.current as MDXEditorMethods);
   const { resolvedTheme } = useTheme();
   const themeName = resolvedTheme === "dark" ? "dark" : "light";
+  const [validationError, setValidationError] = useState<string | null>(null);
+  const [validationDetails, setValidationDetails] = useState<{
+    message: string;
+    line?: number;
+    column?: number;
+    lineText?: string;
+  } | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>(defaultViewMode);
+  const [isPreview, setIsPreview] = useState(false);
+  const validationDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastValidatedMarkdownRef = useRef<string | null>(null);
+  const validationRunRef = useRef(0);
+  const hasValidatedInitialRef = useRef(false);
+  const codeMirrorViewRef = useRef<any>(null);
+  const currentErrorRef = useRef<{ line: number; column?: number; message: string } | null>(null);
+  const previewComponents = useMemo(
+    () => ({
+      TabsWrapper: TabsWrapper as React.ComponentType<any>,
+      TabItem: TabItem as React.ComponentType<any>,
+      VideoCard: VideoCard as React.ComponentType<any>,
+      AcademyCard: AcademyCard as React.ComponentType<any>,
+    }),
+    []
+  );
+
+  const validateSourceMarkdown = useCallback(
+    async (nextMarkdown: string) => {
+      const runId = ++validationRunRef.current;
+      try {
+        const result = await validateMdxSource(nextMarkdown, {
+          render: true,
+          components: previewComponents,
+        });
+
+        if (validationRunRef.current !== runId) return;
+        if (result.ok) {
+          if (validationError) {
+            setValidationError(null);
+            setValidationDetails(null);
+            onValidationChange?.(null);
+            currentErrorRef.current = null;
+            // Clear error in CodeMirror
+            if (codeMirrorViewRef.current) {
+              codeMirrorViewRef.current.dispatch({
+                effects: setError(null),
+              });
+            }
+          }
+          return;
+        }
+        const location =
+          typeof result.line === "number"
+            ? `Line ${result.line}${
+                typeof result.column === "number" ? `, Column ${result.column}` : ""
+              }`
+            : "";
+        const fullMessage = location ? `${location}: ${result.message}` : result.message;
+        setValidationError(fullMessage);
+        setValidationDetails({
+          message: result.message,
+          line: result.line,
+          column: result.column,
+          lineText: result.lineText,
+        });
+        onValidationChange?.(fullMessage);
+        // Store error for re-application after mode switch
+        if (typeof result.line === "number") {
+          currentErrorRef.current = {
+            line: result.line,
+            column: result.column,
+            message: result.message,
+          };
+        } else {
+          currentErrorRef.current = null;
+        }
+        // Set error in CodeMirror
+        if (codeMirrorViewRef.current && typeof result.line === "number") {
+          console.log('[MdxEditor] Setting error:', { line: result.line, column: result.column, message: result.message });
+          codeMirrorViewRef.current.dispatch({
+            effects: setError({
+              line: result.line,
+              column: result.column,
+              message: result.message,
+            }),
+          });
+        } else {
+          console.log('[MdxEditor] Cannot set error - view not available or no line info', {
+            hasView: !!codeMirrorViewRef.current,
+            line: result.line
+          });
+        }
+      } catch (err) {
+        if (validationRunRef.current !== runId) return;
+        const message = err instanceof Error ? err.message : String(err);
+        setValidationError(message);
+        setValidationDetails({ message });
+        onValidationChange?.(message);
+        currentErrorRef.current = null;
+        // Clear error in CodeMirror (no line info)
+        if (codeMirrorViewRef.current) {
+          codeMirrorViewRef.current.dispatch({
+            effects: setError(null),
+          });
+        }
+      }
+    },
+    [onValidationChange, previewComponents, validationError]
+  );
+
+  const scheduleSourceValidation = useCallback(
+    (nextMarkdown: string) => {
+      if (lastValidatedMarkdownRef.current === nextMarkdown) return;
+      if (validationDebounceRef.current) {
+        clearTimeout(validationDebounceRef.current);
+      }
+      validationDebounceRef.current = setTimeout(() => {
+        lastValidatedMarkdownRef.current = nextMarkdown;
+        void validateSourceMarkdown(nextMarkdown);
+      }, 500);
+    },
+    [validateSourceMarkdown]
+  );
+
+  useEffect(() => {
+    if (viewMode === "rich-text" && validationDebounceRef.current) {
+      clearTimeout(validationDebounceRef.current);
+      validationDebounceRef.current = null;
+    }
+  }, [viewMode]);
+
+
+  useEffect(() => {
+    return () => {
+      if (validationDebounceRef.current) {
+        clearTimeout(validationDebounceRef.current);
+        validationDebounceRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    setValidationError(null);
+    setValidationDetails(null);
+    onValidationChange?.(null);
+  }, [markdown, onValidationChange]);
+
+  useEffect(() => {
+    if (hasValidatedInitialRef.current) return;
+    hasValidatedInitialRef.current = true;
+    void validateSourceMarkdown(markdown);
+  }, [markdown, validateSourceMarkdown]);
 
   const imageUploadHandler = useCallback(async (image: File) => {
     const formData = new FormData();
@@ -484,47 +696,56 @@ export const MdxEditor = React.forwardRef<MDXEditorMethods, MdxEditorProps>(
       diffSourcePlugin({
         diffMarkdown: diffMarkdown ?? markdown,
         viewMode: defaultViewMode,
+        codeMirrorExtensions: [
+          errorExtension(),
+          createViewRefExtension((view) => {
+            codeMirrorViewRef.current = view;
+          }, currentErrorRef),
+        ],
       }),
       imagePlugin({ imageUploadHandler }),
       toolbarPlugin({
         toolbarContents: () => (
-          <DiffSourceToggleWrapper
-            options={[
-              ...(showRichText ? ["rich-text" as const] : []),
-              ...(showSource ? ["source" as const] : []),
-              ...(showDiff ? ["diff" as const] : []),
-            ]}
-          >
-            <div className="flex flex-wrap gap-1 p-2 bg-muted/50 border-b border-border items-center">
-              <UndoRedo />
-              <div className="w-px h-6 bg-border mx-1" />
-              <BlockTypeSelect />
-              <div className="w-px h-6 bg-border mx-1" />
-              <BoldItalicUnderlineToggles />
-              <CodeToggle />
-              <StrikeThroughSupSubToggles />
-              <div className="w-px h-6 bg-border mx-1" />
-              <ListsToggle />
-              <div className="w-px h-6 bg-border mx-1" />
-              <CreateLink />
-              <InsertImage />
-              <InsertTable />
-              <span
-                onMouseDown={(event) => {
-                  event.preventDefault();
-                  editorRef.current?.focus();
-                }}
-              >
-                <InsertThematicBreak />
-              </span>
-              <div className="w-px h-6 bg-border mx-1" />
-              <InsertCodeBlock />
-              <InsertCustomAdmonition items={resolvedAdmonitions.items} />
-              <InsertFrontmatter />
-              <div className="w-px h-6 bg-border mx-1" />
-              <DocsComponentsToolbar uploadAsset={imageUploadHandler} />
-            </div>
-          </DiffSourceToggleWrapper>
+          <>
+            <ViewModeTracker onViewModeChange={setViewMode} />
+            <DiffSourceToggleWrapper
+              options={[
+                ...(showRichText ? ["rich-text" as const] : []),
+                ...(showSource ? ["source" as const] : []),
+                ...(showDiff ? ["diff" as const] : []),
+              ]}
+            >
+              <div className="flex flex-wrap gap-1 p-2 bg-muted/50 border-b border-border items-center">
+                <UndoRedo />
+                <div className="w-px h-6 bg-border mx-1" />
+                <BlockTypeSelect />
+                <div className="w-px h-6 bg-border mx-1" />
+                <BoldItalicUnderlineToggles />
+                <CodeToggle />
+                <StrikeThroughSupSubToggles />
+                <div className="w-px h-6 bg-border mx-1" />
+                <ListsToggle />
+                <div className="w-px h-6 bg-border mx-1" />
+                <CreateLink />
+                <InsertImage />
+                <InsertTable />
+                <span
+                  onMouseDown={(event) => {
+                    event.preventDefault();
+                    editorRef.current?.focus();
+                  }}
+                >
+                  <InsertThematicBreak />
+                </span>
+                <div className="w-px h-6 bg-border mx-1" />
+                <InsertCodeBlock />
+                <InsertCustomAdmonition items={resolvedAdmonitions.items} />
+                <InsertFrontmatter />
+                <div className="w-px h-6 bg-border mx-1" />
+                <DocsComponentsToolbar uploadAsset={imageUploadHandler} />
+              </div>
+            </DiffSourceToggleWrapper>
+          </>
         ),
       }),
     ],
@@ -545,20 +766,157 @@ export const MdxEditor = React.forwardRef<MDXEditorMethods, MdxEditorProps>(
   return (
     <div className="w-full h-full border border-border rounded-md bg-background overflow-hidden text-foreground max-h-screen overflow-y-auto">
       <div className={`${themeName}-theme`} data-theme={themeName}>
-        <MDXEditor
-          ref={editorRef}
-          markdown={markdown}
-          onChange={(nextMarkdown) => onChange?.(nextMarkdown)}
-          className="mdx-editor"
-          contentEditableClassName="mdx-prose max-w-none p-4 min-h-[500px]"
-          toMarkdownOptions={{
-            bullet: "-",
-            rule: "-",
-            ruleRepetition: 3,
-          }}
-          lexicalTheme={customLexicalTheme}
-          plugins={plugins}
-        />
+        <div className="flex items-center justify-end gap-2 border-b border-border bg-muted/30 px-3 py-2 text-[11px] font-semibold">
+          <button
+            type="button"
+            onClick={() => setIsPreview(false)}
+            className={!isPreview ? "text-foreground" : "text-muted-foreground"}
+          >
+            Editor
+          </button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="inline-block">
+                <button
+                  type="button"
+                  onClick={() => setIsPreview(true)}
+                  disabled={!!validationError}
+                  className={`${
+                    isPreview ? "text-foreground" : "text-muted-foreground"
+                  } ${
+                    validationError ? "opacity-50 cursor-not-allowed" : ""
+                  }`}
+                >
+                  Preview
+                </button>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>
+              {validationError ? "Fix validation errors before previewing" : "Preview"}
+            </TooltipContent>
+          </Tooltip>
+        </div>
+        <style jsx global>{`
+          .mdx-editor [class*="markdownParseError"] {
+            display: none;
+          }
+        `}</style>
+        {validationDetails && (
+          <div className="border-b border-destructive/30 bg-destructive/10 px-4 py-2 text-[11px] text-destructive">
+            <span className="font-semibold">MDX error</span>
+            {" — "}
+            {validationDetails.line
+              ? `Line ${validationDetails.line}${
+                  typeof validationDetails.column === "number"
+                    ? `, Column ${validationDetails.column}`
+                    : ""
+                }`
+              : "Location unavailable"}
+            {validationDetails.message ? `: ${validationDetails.message}` : ""}
+            {validationDetails.lineText && (
+              <div className="mt-2 font-mono text-xs text-destructive/90">
+                <div className="whitespace-pre-wrap break-words">
+                  {validationDetails.lineText}
+                </div>
+                {typeof validationDetails.column === "number" && (
+                  <div className="whitespace-pre-wrap break-words">
+                    {" ".repeat(Math.max(0, validationDetails.column - 1))}^
+                  </div>
+                )}
+              </div>
+            )}
+            <div className="mt-2 text-xs text-destructive/80">
+              Please fix this issue in source/diff mode to continue.
+            </div>
+          </div>
+        )}
+        <div className={isPreview ? "hidden" : ""}>
+          <MDXEditor
+            ref={editorRef}
+            markdown={markdown}
+            onChange={(nextMarkdown) => {
+              onChange?.(nextMarkdown);
+              if (viewMode !== "rich-text") {
+                scheduleSourceValidation(nextMarkdown);
+              }
+              if (validationError) {
+                setValidationError(null);
+                setValidationDetails(null);
+                onValidationChange?.(null);
+                currentErrorRef.current = null;
+                // Clear error in CodeMirror
+                if (codeMirrorViewRef.current) {
+                  codeMirrorViewRef.current.dispatch({
+                    effects: setError(null),
+                  });
+                }
+              }
+            }}
+            onError={(payload) => {
+              const { error, source } = payload;
+              const line =
+                typeof (payload as { line?: number }).line === "number"
+                  ? (payload as { line: number }).line
+                  : undefined;
+              const column =
+                typeof (payload as { column?: number }).column === "number"
+                  ? (payload as { column: number }).column
+                  : undefined;
+              const location =
+                typeof line === "number"
+                  ? `Line ${line}${
+                      typeof column === "number" ? `, Column ${column}` : ""
+                    }`
+                  : "";
+              const message = location ? `${location}: ${error}` : error;
+              const sourceText = typeof source === "string" ? source : markdown;
+              const lineText =
+                typeof line === "number"
+                  ? sourceText.split(/\r?\n/)[line - 1]
+                  : undefined;
+              setValidationError(message);
+              setValidationDetails({ message: error, line, column, lineText });
+              onValidationChange?.(message);
+              // Store error for re-application after mode switch
+              if (typeof line === "number") {
+                currentErrorRef.current = {
+                  line,
+                  column,
+                  message: error,
+                };
+              } else {
+                currentErrorRef.current = null;
+              }
+              // Set error in CodeMirror
+              if (codeMirrorViewRef.current && typeof line === "number") {
+                codeMirrorViewRef.current.dispatch({
+                  effects: setError({
+                    line,
+                    column,
+                    message: error,
+                  }),
+                });
+              }
+            }}
+            className="mdx-editor"
+            contentEditableClassName="mdx-prose max-w-none p-4 min-h-[500px]"
+            toMarkdownOptions={{
+              bullet: "-",
+              rule: "-",
+              ruleRepetition: 3,
+            }}
+            lexicalTheme={customLexicalTheme}
+            plugins={plugins}
+          />
+        </div>
+        {isPreview && (
+          <MdxPreview
+            value={markdown}
+            components={previewComponents}
+            className="h-full w-full overflow-auto bg-background text-foreground mdx-prose p-4"
+            onClose={() => setIsPreview(false)}
+          />
+        )}
       </div>
     </div>
   );

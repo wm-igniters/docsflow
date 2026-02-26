@@ -1,8 +1,9 @@
 diff --git a/node_modules/@mdxeditor/editor/dist/plugins/core/index.js b/node_modules/@mdxeditor/editor/dist/plugins/core/index.js
-index 0b2f589..6f8b6e5 100644
+index 8a897ec..a3879a5 100644
 --- a/node_modules/@mdxeditor/editor/dist/plugins/core/index.js
 +++ b/node_modules/@mdxeditor/editor/dist/plugins/core/index.js
-@@ -284,6 +284,6 @@ const corePlugin = realmPlugin({
+@@ -284,7 +284,7 @@ const createRootEditorSubscription$ = Appender(rootEditorSubscriptions$, (r, sig
+             jsxIsAvailable: r.getValue(jsxIsAvailable$)
            });
          });
 -        r.pub(markdown$, theNewMarkdownValue.trim());

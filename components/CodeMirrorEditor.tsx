@@ -19,8 +19,10 @@ import { EditorView, basicSetup } from "codemirror";
 import { githubLight } from "@uiw/codemirror-theme-github";
 import { dracula } from "@uiw/codemirror-theme-dracula";
 import { useTheme } from "next-themes";
+import { CodePreview, type PreviewLanguage } from "@/components/CodePreview";
+import { errorExtension, setError, type ErrorInfo } from "@/lib/codemirror/errorExtension";
 
-type CodeViewMode = "source" | "diff";
+type CodeViewMode = "source" | "diff" | "preview";
 
 export interface CodeMirrorEditorHandle {
   getValue: () => string;
@@ -36,6 +38,8 @@ interface CodeMirrorEditorProps {
   showSource?: boolean;
   initialValue?: string;
   onChange?: (value: string) => void;
+  onValidationChange?: (error: string | null) => void;
+  errorInfo?: ErrorInfo | null;
 }
 
 export const CodeMirrorEditor = React.forwardRef<
@@ -50,6 +54,8 @@ export const CodeMirrorEditor = React.forwardRef<
     showSource = true,
     initialValue = "",
     onChange,
+    onValidationChange,
+    errorInfo,
   },
   ref
 ) {
@@ -62,6 +68,7 @@ export const CodeMirrorEditor = React.forwardRef<
 
   const extensions = useMemo(() => {
     const exts = [];
+    exts.push(errorExtension());
     switch (fileExtension?.toLowerCase()) {
       case "js":
       case "jsx":
@@ -86,14 +93,56 @@ export const CodeMirrorEditor = React.forwardRef<
     return exts;
   }, [fileExtension]);
 
+  const normalizedExtension = fileExtension?.toLowerCase() ?? "";
+  const previewLanguage = useMemo<PreviewLanguage | null>(() => {
+    if (normalizedExtension === "html") return "html";
+    if (normalizedExtension === "jsx") return "jsx";
+    if (normalizedExtension === "tsx") return "tsx";
+    return null;
+  }, [normalizedExtension]);
+  const canPreview = previewLanguage !== null;
+
   const theme = resolvedTheme === "dark" ? dracula : githubLight;
+
+  const validateContent = useCallback(
+    (value: string) => {
+      if (!onValidationChange) return;
+      const extension = fileExtension?.toLowerCase();
+      let error: string | null = null;
+
+      if (extension === "json") {
+        try {
+          JSON.parse(value);
+        } catch (err) {
+          error =
+            err instanceof Error
+              ? `Invalid JSON: ${err.message}`
+              : "Invalid JSON.";
+        }
+      } else if (extension === "svg") {
+        try {
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(value, "image/svg+xml");
+          if (doc.querySelector("parsererror")) {
+            error = "Invalid SVG markup.";
+          }
+        } catch {
+          error = "Invalid SVG markup.";
+        }
+      }
+
+      onValidationChange(error);
+    },
+    [fileExtension, onValidationChange]
+  );
 
   const handleSourceChange = useCallback(
     (value: string) => {
       currentValueRef.current = value;
       onChange?.(value);
+      validateContent(value);
     },
-    [onChange]
+    [onChange, validateContent]
   );
 
   useImperativeHandle(
@@ -157,8 +206,7 @@ export const CodeMirrorEditor = React.forwardRef<
           EditorView.updateListener.of((update) => {
             if (update.docChanged) {
               const nextValue = update.state.doc.toString();
-              currentValueRef.current = nextValue;
-              onChange?.(nextValue);
+              handleSourceChange(nextValue);
             }
           }),
         ],
@@ -173,7 +221,7 @@ export const CodeMirrorEditor = React.forwardRef<
         mergeContainerRef.current.innerHTML = "";
       }
     };
-  }, [viewMode, theme, extensions, onChange]);
+  }, [viewMode, theme, extensions, handleSourceChange]);
 
   useEffect(() => {
     if (viewMode !== "diff" || !mergeViewRef.current) return;
@@ -201,9 +249,32 @@ export const CodeMirrorEditor = React.forwardRef<
     }
   }, [viewMode]);
 
+  // Update error decorations when errorInfo changes
+  useEffect(() => {
+    if (viewMode === "diff" && mergeViewRef.current) {
+      mergeViewRef.current.b.dispatch({
+        effects: setError(errorInfo ?? null),
+      });
+    } else if (viewRef.current) {
+      viewRef.current.dispatch({
+        effects: setError(errorInfo ?? null),
+      });
+    }
+  }, [errorInfo, viewMode]);
+
+  useEffect(() => {
+    validateContent(currentValueRef.current);
+  }, [fileExtension, initialValue, validateContent]);
+
+  useEffect(() => {
+    if (viewMode === "preview" && !canPreview) {
+      setViewMode("source");
+    }
+  }, [canPreview, viewMode]);
+
   return (
     <div className="w-full h-full border border-border rounded-md overflow-hidden font-mono text-sm max-h-screen overflow-y-auto flex flex-col">
-      {(showSource || showDiff) && (
+      {(showSource || showDiff || canPreview) && (
         <div className="flex items-center gap-2 border-b border-border bg-muted/50 px-3 py-2 text-[11px] font-semibold">
           {showSource && (
             <button
@@ -223,11 +294,26 @@ export const CodeMirrorEditor = React.forwardRef<
               Diff
             </button>
           )}
+          {canPreview && (
+            <button
+              type="button"
+              onClick={() => setViewMode("preview")}
+              className={viewMode === "preview" ? "text-foreground" : "text-muted-foreground"}
+            >
+              Preview
+            </button>
+          )}
         </div>
       )}
       <div className="flex-1 min-h-0">
         {viewMode === "diff" ? (
           <div ref={mergeContainerRef} className="h-full" />
+        ) : viewMode === "preview" && previewLanguage ? (
+          <CodePreview
+            value={currentValueRef.current}
+            language={previewLanguage}
+            className="h-full w-full"
+          />
         ) : (
           <CodeMirror
             theme={theme}

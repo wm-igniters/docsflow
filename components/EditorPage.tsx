@@ -236,6 +236,8 @@ export default function EditorPage({
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [isDirty, setIsDirty] = useState(false);
+  const [editorError, setEditorError] = useState<string | null>(null);
+  const [draftContent, setDraftContent] = useState(content);
   const currentContentRef = useRef(content);
   const lastSavedContentRef = useRef(docsflowContent ?? githubContent ?? content);
   const mdxEditorRef = useRef<any>(null);
@@ -255,6 +257,9 @@ export default function EditorPage({
     (status === 'new' || status === 'modified') &&
     !isDirty &&
     !incomingUpdate;
+  
+  const isSaveDisabled = !selectedPath || isLoading || !isDirty || !!incomingUpdate || !!editorError;
+  const isPublishDisabled = !canPublish || isLoading || isPublishing;
   const formattedStatus = status ? status.charAt(0).toUpperCase() + status.slice(1) : "Unknown";
   const formatTimestamp = (value: Date | string | null) => {
     if (!value) return "—";
@@ -274,6 +279,17 @@ export default function EditorPage({
   const isVideoAsset = ['mp4', 'webm', 'mov', 'm4v', 'avi', 'mkv'].includes(selectedExtension);
   const isAudioAsset = ['mp3', 'wav', 'ogg', 'm4a', 'flac', 'aac'].includes(selectedExtension);
   const isAsset = isImageAsset || isVideoAsset || isAudioAsset;
+  const saveTooltip = !selectedPath
+    ? "No active document"
+    : isLoading
+    ? "Loading content..."
+    : !!incomingUpdate
+    ? "Please merge remote changes before saving"
+    : !!editorError
+    ? `Please fix issues first, then save.`
+    : !isDirty
+    ? "No unsaved changes"
+    : "Save local changes";
 
   const looksBase64 = (value: string) => {
     if (!value) return false;
@@ -318,6 +334,11 @@ export default function EditorPage({
   const markDirty = useCallback((nextValue: string) => {
     currentContentRef.current = nextValue;
     setIsDirty(nextValue !== (lastSavedContentRef.current ?? ""));
+    setDraftContent(nextValue);
+  }, []);
+
+  const handleValidationChange = useCallback((error: string | null) => {
+    setEditorError(error);
   }, []);
 
   const syncDirtyFromEditor = useCallback(() => {
@@ -362,6 +383,7 @@ export default function EditorPage({
             mdxEditorRef.current.setMarkdown(mergedText);
           }
           currentContentRef.current = mergedText;
+          setDraftContent(mergedText);
           setIsDirty(true);
           resolveIncomingUpdate?.(incomingUpdate, mergedText);
           toast.success("Changes merged cleanly!");
@@ -379,6 +401,7 @@ export default function EditorPage({
         mdxEditorRef.current.setMarkdown(conflictResolvedContent);
       }
       currentContentRef.current = conflictResolvedContent;
+      setDraftContent(conflictResolvedContent);
       setIsDirty(true);
       resolveIncomingUpdate(incomingUpdate, conflictResolvedContent);
     }
@@ -390,7 +413,9 @@ export default function EditorPage({
     const base = docsflowContent ?? githubContent ?? content ?? "";
     lastSavedContentRef.current = base;
     currentContentRef.current = content;
+    setDraftContent(content);
     setIsDirty(currentContentRef.current !== lastSavedContentRef.current);
+    setEditorError(null);
   }, [content, selectedPath, docsflowContent, githubContent]);
 
   return (
@@ -443,12 +468,12 @@ export default function EditorPage({
             <div className="flex items-center gap-2 shrink-0">
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <div className="inline-block">
+                  <div className={cn("inline-block", isSaveDisabled && "cursor-not-allowed")}>
                     <Button 
                       variant="outline" 
                       size="sm" 
                       onClick={handleSave}
-                      disabled={!selectedPath || isLoading || !isDirty || !!incomingUpdate}
+                      disabled={isSaveDisabled}
                       className="h-8 gap-2 rounded-full px-4 text-[11px] font-bold shadow-none hover:bg-muted/50"
                     >
                       <Save size={14} /> Save Draft
@@ -456,24 +481,22 @@ export default function EditorPage({
                   </div>
                 </TooltipTrigger>
                 <TooltipContent>
-                  {!selectedPath && 'No active document'}
-                  {isLoading && 'Loading content...'}
-                  {!!incomingUpdate && 'Please merge remote changes before saving'}
-                  {selectedPath && !isLoading && !incomingUpdate && !isDirty && 'No unsaved changes'}
-                  {selectedPath && !isLoading && !incomingUpdate && isDirty && 'Save local changes'}
+                  {saveTooltip}
                 </TooltipContent>
               </Tooltip>
 
               <Tooltip>
                 <TooltipTrigger asChild>
+                  <div className={cn("inline-block", isPublishDisabled && "cursor-not-allowed")}>
                     <Button 
                       size="sm" 
                       onClick={onPublish}
-                      disabled={!canPublish || isLoading || isPublishing}
+                      disabled={isPublishDisabled}
                       className="h-8 gap-2 rounded-full px-4 text-[11px] font-bold"
-                  >
-                    <Send size={14} /> {isPublishing ? "Publishing..." : "Publish"}
-                  </Button>
+                    >
+                      <Send size={14} /> {isPublishing ? "Publishing..." : "Publish"}
+                    </Button>
+                  </div>
                 </TooltipTrigger>
                 <TooltipContent>
                   {isPublishing
@@ -555,9 +578,10 @@ export default function EditorPage({
                   <MdxEditor
                     ref={mdxEditorRef}
                     key={selectedPath}
-                    markdown={content}
+                    markdown={draftContent}
                     diffMarkdown={baseContent}
                     onChange={markDirty}
+                    onValidationChange={handleValidationChange}
                     documentPath={selectedPath}
                   />
                 ) : isSvg ? (
@@ -566,6 +590,7 @@ export default function EditorPage({
                     initialValue={content}
                     baseValue={baseContent}
                     onChange={markDirty}
+                    onValidationChange={handleValidationChange}
                   />
                 ) : isAsset ? (
                   <div className="h-full w-full flex flex-col">
@@ -602,6 +627,7 @@ export default function EditorPage({
                     initialValue={content}
                     baseValue={baseContent}
                     onChange={markDirty}
+                    onValidationChange={handleValidationChange}
                     fileExtension={selectedPath.split('.').pop() || 'txt'}
                     showDiff
                   />

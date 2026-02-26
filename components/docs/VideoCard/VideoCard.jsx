@@ -1,4 +1,4 @@
-import Link from '@docusaurus/Link';
+import Link from 'next/link';
 import './VideoCard.css';
 
 function VideoCard({

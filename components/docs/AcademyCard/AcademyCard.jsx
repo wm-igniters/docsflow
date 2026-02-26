@@ -1,5 +1,5 @@
 import './AcademyCard.css';
-import Link from '@docusaurus/Link';
+import Link from 'next/link';
 
 function AcademyCard({ title, description, academyLink, children }) {
   return (

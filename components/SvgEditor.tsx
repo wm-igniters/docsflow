@@ -7,12 +7,14 @@ interface SvgEditorProps {
   initialValue?: string;
   baseValue?: string;
   onChange?: (value: string) => void;
+  onValidationChange?: (error: string | null) => void;
 }
 
 export default function SvgEditor({
   initialValue = "",
   baseValue = "",
   onChange,
+  onValidationChange,
 }: SvgEditorProps) {
   const looksBase64 = (value: string) => {
     if (!value) return false;
@@ -73,6 +75,7 @@ export default function SvgEditor({
             initialValue={value}
             baseValue={baseValue}
             onChange={handleChange}
+            onValidationChange={onValidationChange}
             fileExtension="svg"
             showDiff
             showSource
