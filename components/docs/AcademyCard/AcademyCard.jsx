@@ -1,5 +1,4 @@
 import './AcademyCard.css';
-import Link from 'next/link';
 
 function AcademyCard({ title, description, academyLink, children }) {
   return (
@@ -10,10 +9,10 @@ function AcademyCard({ title, description, academyLink, children }) {
           <p>{description}</p>
         </div>
         <div className="academy-card-action">
-          <Link to={academyLink} className="academy-card-link">
+          <a href={academyLink} className="academy-card-link" target="_blank" rel="noopener noreferrer">
             <img width="32" height="32" src="/img/icon/acd-icon.svg" alt="Academy Icon"/>
             <span>View on Academy</span>
-          </Link>
+          </a>
         </div>
       </div>
       {children && (

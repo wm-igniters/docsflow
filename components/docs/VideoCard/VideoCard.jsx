@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import './VideoCard.css';
 
 function VideoCard({
@@ -10,7 +9,7 @@ function VideoCard({
   thumbnailSubtext,
 }) {
   return (
-    <Link to={videoUrl} style={{ textDecoration: 'none' }}>
+    <a href={videoUrl} style={{ textDecoration: 'none' }} target="_blank" rel="noopener noreferrer">
       <div className="video-card-container">
         <div className="video-card-content">
           <h3>{title}</h3>
@@ -44,7 +43,7 @@ function VideoCard({
           )}
         </div>
       </div>
-    </Link>
+    </a>
   );
 }
 
