@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { decodeReactError } from "@/lib/mdx/decodeReactError";
 
 type ValidationResult =
   | { ok: true }
@@ -27,7 +28,7 @@ let runtimePromise: Promise<{
   remarkGfm: typeof import("remark-gfm")["default"];
   remarkComment: typeof import("remark-comment")["default"];
   remarkMath: typeof import("remark-math")["default"];
-  devRuntime: typeof import("react/jsx-dev-runtime");
+  prodRuntime: typeof import("react/jsx-runtime");
 }> | null = null;
 
 const getRuntime = () => {
@@ -39,7 +40,7 @@ const getRuntime = () => {
       import("remark-gfm"),
       import("remark-comment"),
       import("remark-math"),
-      import("react/jsx-dev-runtime"),
+      import("react/jsx-runtime"),
     ]).then(
       ([
         mdx,
@@ -48,7 +49,7 @@ const getRuntime = () => {
         remarkGfm,
         remarkComment,
         remarkMath,
-        devRuntime,
+        prodRuntime,
       ]) => ({
         evaluate: mdx.evaluate,
         remarkFrontmatter: remarkFrontmatter.default,
@@ -56,7 +57,7 @@ const getRuntime = () => {
         remarkGfm: remarkGfm.default,
         remarkComment: remarkComment.default,
         remarkMath: remarkMath.default,
-        devRuntime,
+        prodRuntime,
       })
     );
   }
@@ -147,13 +148,13 @@ const renderForValidation = async (
   }
 
   if (renderError instanceof Error) {
-    return renderError.message;
+    return decodeReactError(renderError.message);
   }
   if (typeof renderError === "string") {
-    return renderError;
+    return decodeReactError(renderError);
   }
   if (errors.length > 0) {
-    return errors[0];
+    return decodeReactError(errors[0]);
   }
   return null;
 };
@@ -170,23 +171,24 @@ export const validateMdxSource = async (
       remarkGfm,
       remarkComment,
       remarkMath,
-      devRuntime,
+      prodRuntime,
     } = await getRuntime();
+    const shouldRender = Boolean(options.render);
 
-    const { default: Content } = await evaluate(source, {
-      development: true,
-      ...devRuntime,
-      baseUrl: import.meta.url,
-      remarkPlugins: [
-        [remarkFrontmatter, ["yaml", "toml"]],
-        remarkDirective,
-        remarkGfm,
-        remarkComment,
-        remarkMath,
-      ],
-    });
+    if (shouldRender) {
+      const { default: Content } = await evaluate(source, {
+        development: false,
+        ...prodRuntime,
+        baseUrl: import.meta.url,
+        remarkPlugins: [
+          [remarkFrontmatter, ["yaml", "toml"]],
+          remarkDirective,
+          remarkGfm,
+          remarkComment,
+          remarkMath,
+        ],
+      });
 
-    if (options.render) {
       const renderError = await renderForValidation(Content, options.components);
       if (renderError) {
         return { ok: false, message: renderError };
@@ -196,10 +198,11 @@ export const validateMdxSource = async (
     return { ok: true };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    const decoded = decodeReactError(message);
     const { line, column } = extractLineColumn(err);
     const lineText =
       typeof line === "number" ? source.split(/\r?\n/)[line - 1] : undefined;
-    return { ok: false, message, line, column, lineText };
+    return { ok: false, message: decoded, line, column, lineText };
   }
 };
 

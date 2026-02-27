@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { decodeReactError } from "@/lib/mdx/decodeReactError";
 
 type MdxComponents = Record<string, React.ComponentType<unknown>>;
 
@@ -18,7 +19,7 @@ let runtimePromise: Promise<{
   remarkGfm: typeof import("remark-gfm")["default"];
   remarkComment: typeof import("remark-comment")["default"];
   remarkMath: typeof import("remark-math")["default"];
-  devRuntime: typeof import("react/jsx-dev-runtime");
+  prodRuntime: typeof import("react/jsx-runtime");
 }> | null = null;
 
 let consolePatched = false;
@@ -63,7 +64,8 @@ class PreviewErrorBoundary extends React.Component<
   }
 
   componentDidCatch(error: Error) {
-    this.props.onError(error);
+    const decoded = decodeReactError(error.message);
+    this.props.onError(new Error(decoded));
   }
 
   render() {
@@ -80,7 +82,7 @@ const getRuntime = () => {
       import("remark-gfm"),
       import("remark-comment"),
       import("remark-math"),
-      import("react/jsx-dev-runtime"),
+      import("react/jsx-runtime"),
     ]).then(
       ([
         mdx,
@@ -89,7 +91,7 @@ const getRuntime = () => {
         remarkGfm,
         remarkComment,
         remarkMath,
-        devRuntime,
+        prodRuntime,
       ]) => ({
         evaluate: mdx.evaluate,
         remarkFrontmatter: remarkFrontmatter.default,
@@ -97,7 +99,7 @@ const getRuntime = () => {
         remarkGfm: remarkGfm.default,
         remarkComment: remarkComment.default,
         remarkMath: remarkMath.default,
-        devRuntime,
+        prodRuntime,
       })
     );
   }
@@ -179,11 +181,11 @@ export const MdxPreview = ({
         remarkGfm,
         remarkComment,
         remarkMath,
-        devRuntime,
+        prodRuntime,
       } = await getRuntime();
       const { default: Content } = await evaluate(pendingValue, {
-        development: true,
-        ...devRuntime,
+        development: false,
+        ...prodRuntime,
         baseUrl: import.meta.url,
         remarkPlugins: [
           [remarkFrontmatter, ["yaml", "toml"]],
@@ -209,7 +211,7 @@ export const MdxPreview = ({
       }, 200);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      setError(message);
+      setError(decodeReactError(message));
       const root = await ensureFrameRoot();
       if (root) {
         root.render(
