@@ -854,13 +854,15 @@ export const MdxEditor = React.forwardRef<MDXEditorMethods, MdxEditorProps>(
             }}
             onError={(payload) => {
               const { error, source } = payload;
+              const payloadLine = (payload as { line?: number }).line;
               const line =
-                typeof (payload as { line?: number }).line === "number"
-                  ? (payload as { line: number }).line
+                typeof payloadLine === "number"
+                  ? payloadLine
                   : undefined;
+              const payloadColumn = (payload as { column?: number }).column;
               const column =
-                typeof (payload as { column?: number }).column === "number"
-                  ? (payload as { column: number }).column
+                typeof payloadColumn === "number"
+                  ? payloadColumn
                   : undefined;
               const location =
                 typeof line === "number"
